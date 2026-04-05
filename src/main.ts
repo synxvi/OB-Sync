@@ -17,7 +17,7 @@ import {
 } from "obsidian";
 import { syncer } from "../pro/src/sync";
 import type {
-  RemotelySavePluginSettings,
+  ObsSyncPluginSettings,
   SyncTriggerSourceType,
 } from "./baseTypes";
 import {
@@ -53,10 +53,10 @@ import {
 } from "./localdb";
 import { changeMobileStatusBar } from "./misc";
 import { DEFAULT_PROFILER_CONFIG, Profiler } from "./profiler";
-import { RemotelySaveSettingTab } from "./settings";
+import { ObsSyncSettingTab } from "./settings";
 import { SyncAlgoV3Modal } from "./syncAlgoV3Notice";
 
-const DEFAULT_SETTINGS: RemotelySavePluginSettings = {
+const DEFAULT_SETTINGS: ObsSyncPluginSettings = {
   webdav: DEFAULT_WEBDAV_CONFIG,
   onedrive: DEFAULT_ONEDRIVE_CONFIG,
   password: "",
@@ -96,9 +96,9 @@ interface OAuth2Info {
   revokeAuthSetting?: Setting;
 }
 
-const iconNameSyncWait = `remotely-save-sync-wait`;
-const iconNameSyncRunning = `remotely-save-sync-running`;
-const iconNameLogs = `remotely-save-logs`;
+const iconNameSyncWait = `ob-sync-sync-wait`;
+const iconNameSyncRunning = `ob-sync-sync-running`;
+const iconNameLogs = `ob-sync-logs`;
 
 const getIconSvg = () => {
   const iconSvgSyncWait = createElement(RotateCcw);
@@ -145,8 +145,8 @@ const getStatusBarShortMsgFromSyncSource = (
   }
 };
 
-export default class RemotelySavePlugin extends Plugin {
-  settings!: RemotelySavePluginSettings;
+export default class ObsSyncPlugin extends Plugin {
+  settings!: ObsSyncPluginSettings;
   db!: InternalDBs;
   isSyncing!: boolean;
   hasPendingSyncOnSave!: boolean;
@@ -752,7 +752,7 @@ export default class RemotelySavePlugin extends Plugin {
       },
     });
 
-    this.addSettingTab(new RemotelySaveSettingTab(this.app, this));
+    this.addSettingTab(new ObsSyncSettingTab(this.app, this));
 
     // this.registerDomEvent(document, "click", (evt: MouseEvent) => {
     //   console.info("click", evt);

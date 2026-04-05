@@ -27,6 +27,9 @@ esbuild
     },
     entryPoints: ["./src/main.ts"],
     bundle: true,
+    alias: {
+      "node:url": "url/",
+    },
     external: [
       "obsidian",
       "electron",
@@ -36,36 +39,6 @@ esbuild
       "http",
       "https",
       "vm",
-      "url",
-      "util",
-      "path",
-      "stream",
-      "crypto",
-      "zlib",
-      "child_process",
-      "assert",
-      "buffer",
-      "os",
-      "events",
-      "tty",
-      "node:url",
-      "node:util",
-      "node:path",
-      "node:stream",
-      "node:crypto",
-      "node:zlib",
-      "node:fs",
-      "node:net",
-      "node:http",
-      "node:https",
-      "node:tls",
-      "node:vm",
-      "node:child_process",
-      "node:assert",
-      "node:buffer",
-      "node:os",
-      "node:events",
-      "node:tty",
       // "process",
       // ...builtins
     ],
@@ -77,13 +50,17 @@ esbuild
     sourcemap: prod ? false : "inline",
     treeShaking: true,
     minify: prod,
-    outfile: "main.js",
+    outfile: "dist/main.js",
     define: {
       "global.DEFAULT_ONEDRIVE_CLIENT_ID": `"${DEFAULT_ONEDRIVE_CLIENT_ID}"`,
       "global.DEFAULT_ONEDRIVE_AUTHORITY": `"${DEFAULT_ONEDRIVE_AUTHORITY}"`,
       global: "window",
       "process.env.NODE_DEBUG": `undefined`, // ugly fix
       "process.env.DEBUG": `undefined`, // ugly fix
+
+      // 让 Azure SDK 在浏览器环境中正常工作
+      // https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-util/src/checkEnvironment.ts
+      "globalThis.process.versions": `undefined`,
     },
     plugins: [inlineWorkerPlugin()],
   })

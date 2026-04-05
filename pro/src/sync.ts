@@ -7,7 +7,7 @@ import type {
   EmptyFolderCleanType,
   Entity,
   MixedEntity,
-  RemotelySavePluginSettings,
+  ObsSyncPluginSettings,
   SUPPORTED_SERVICES_TYPE,
   SyncDirectionType,
   SyncTriggerSourceType,
@@ -528,7 +528,7 @@ const getSyncPlanInplace = async (
   conflictAction: ConflictActionType,
   syncDirection: SyncDirectionType,
   profiler: Profiler | undefined,
-  settings: RemotelySavePluginSettings,
+  settings: ObsSyncPluginSettings,
   triggerSource: SyncTriggerSourceType,
   configDir: string
 ) => {
@@ -1899,7 +1899,7 @@ export async function syncer(
   profileID: string,
   vaultRandomID: string,
   configDir: string,
-  settings: RemotelySavePluginSettings,
+  settings: ObsSyncPluginSettings,
   pluginVersion: string,
   configSaver: () => Promise<any>,
   getProtectModifyPercentageErrorStrFunc: any,

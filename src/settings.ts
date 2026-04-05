@@ -43,7 +43,7 @@ import {
   upsertLastFailedSyncTimeByVault,
   upsertLastSuccessSyncTimeByVault,
 } from "./localdb";
-import type RemotelySavePlugin from "./main"; // unavoidable
+import type ObsSyncPlugin from "./main"; // unavoidable
 import {
   changeMobileStatusBar,
   checkHasSpecialCharForDir,
@@ -54,12 +54,12 @@ import { VALID_REQURL } from "./baseTypesObs";
 
 
 export class ChangeRemoteBaseDirModal extends Modal {
-  readonly plugin: RemotelySavePlugin;
+  readonly plugin: ObsSyncPlugin;
   readonly newRemoteBaseDir: string;
   readonly service: SUPPORTED_SERVICES_TYPE_WITH_REMOTE_BASE_DIR;
   constructor(
     app: App,
-    plugin: RemotelySavePlugin,
+    plugin: ObsSyncPlugin,
     newRemoteBaseDir: string,
     service: SUPPORTED_SERVICES_TYPE_WITH_REMOTE_BASE_DIR
   ) {
@@ -149,13 +149,13 @@ export class ChangeRemoteBaseDirModal extends Modal {
 
 
 export class OnedriveAuthModal extends Modal {
-  readonly plugin: RemotelySavePlugin;
+  readonly plugin: ObsSyncPlugin;
   readonly authDiv: HTMLDivElement;
   readonly revokeAuthDiv: HTMLDivElement;
   readonly revokeAuthSetting: Setting;
   constructor(
     app: App,
-    plugin: RemotelySavePlugin,
+    plugin: ObsSyncPlugin,
     authDiv: HTMLDivElement,
     revokeAuthDiv: HTMLDivElement,
     revokeAuthSetting: Setting
@@ -223,12 +223,12 @@ export class OnedriveAuthModal extends Modal {
 }
 
 export class OnedriveRevokeAuthModal extends Modal {
-  readonly plugin: RemotelySavePlugin;
+  readonly plugin: ObsSyncPlugin;
   readonly authDiv: HTMLDivElement;
   readonly revokeAuthDiv: HTMLDivElement;
   constructor(
     app: App,
-    plugin: RemotelySavePlugin,
+    plugin: ObsSyncPlugin,
     authDiv: HTMLDivElement,
     revokeAuthDiv: HTMLDivElement
   ) {
@@ -293,11 +293,11 @@ export class OnedriveRevokeAuthModal extends Modal {
 }
 
 class SyncConfigDirModal extends Modal {
-  plugin: RemotelySavePlugin;
+  plugin: ObsSyncPlugin;
   saveDropdownFunc: () => void;
   constructor(
     app: App,
-    plugin: RemotelySavePlugin,
+    plugin: ObsSyncPlugin,
     saveDropdownFunc: () => void
   ) {
     super(app);
@@ -346,9 +346,9 @@ class SyncConfigDirModal extends Modal {
 }
 
 class ExportSettingsQrCodeModal extends Modal {
-  plugin: RemotelySavePlugin;
+  plugin: ObsSyncPlugin;
   exportType: QRExportType;
-  constructor(app: App, plugin: RemotelySavePlugin, exportType: QRExportType) {
+  constructor(app: App, plugin: ObsSyncPlugin, exportType: QRExportType) {
     super(app);
     this.plugin = plugin;
     this.exportType = exportType;
@@ -435,10 +435,10 @@ export const wrapTextWithPasswordHide = (text: TextComponent) => {
   return text;
 };
 
-export class RemotelySaveSettingTab extends PluginSettingTab {
-  readonly plugin: RemotelySavePlugin;
+export class ObsSyncSettingTab extends PluginSettingTab {
+  readonly plugin: ObsSyncPlugin;
 
-  constructor(app: App, plugin: RemotelySavePlugin) {
+  constructor(app: App, plugin: ObsSyncPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -453,7 +453,7 @@ export class RemotelySaveSettingTab extends PluginSettingTab {
       return this.plugin.i18n.t(x, vars);
     };
 
-    containerEl.createEl("h1", { text: "Remotely Save" });
+    containerEl.createEl("h1", { text: "OB Sync" });
 
     //////////////////////////////////////////////////
     // below for service chooser (part 1/2)
@@ -1408,7 +1408,7 @@ export class RemotelySaveSettingTab extends PluginSettingTab {
       .setDesc(t("settings_import_desc"))
       .addText((text) =>
         text
-          .setPlaceholder("obsidian://remotely-save?func=settings&...")
+          .setPlaceholder("obsidian://ob-sync?func=settings&...")
           .setValue("")
           .onChange((val) => {
             importSettingVal = val;

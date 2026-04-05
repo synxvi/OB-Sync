@@ -4,18 +4,18 @@ import QRCode from "qrcode";
 import {
   COMMAND_URI,
   type QRExportType,
-  type RemotelySavePluginSettings,
+  type ObsSyncPluginSettings,
   type UriParams,
 } from "./baseTypes";
 import { getShrinkedSettings as getShrinkedSettingsOnedrive } from "./fsOnedrive";
 
 export const exportQrCodeUri = async (
-  settings: RemotelySavePluginSettings,
+  settings: ObsSyncPluginSettings,
   currentVaultName: string,
   pluginVersion: string,
   exportFields: QRExportType
 ) => {
-  let settings2: Partial<RemotelySavePluginSettings> = {};
+  let settings2: Partial<ObsSyncPluginSettings> = {};
 
   if (exportFields === "basic_and_advanced") {
     settings2 = cloneDeep(settings);
@@ -43,7 +43,7 @@ export const exportQrCodeUri = async (
 export interface ProcessQrCodeResultType {
   status: "error" | "ok";
   message: string;
-  result?: RemotelySavePluginSettings;
+  result?: ObsSyncPluginSettings;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface ProcessQrCodeResultType {
  * @param input
  */
 export const parseUriByHand = (input: string) => {
-  if (!input.startsWith("obsidian://remotely-save?func=settings&")) {
+  if (!input.startsWith("obsidian://ob-sync?func=settings&")) {
     throw Error(`not valid string`);
   }
 
@@ -90,7 +90,7 @@ export const importQrCodeUri = (
     };
   }
 
-  let settings = {} as RemotelySavePluginSettings;
+  let settings = {} as ObsSyncPluginSettings;
   try {
     settings = JSON.parse(params.data);
   } catch (e) {

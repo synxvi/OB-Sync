@@ -1,6 +1,6 @@
 {
   "name": "ob-sync",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A simplified sync plugin for Obsidian app with WebDAV and OneDrive support.",
   "scripts": {
     "dev2": "node esbuild.config.mjs --watch",
@@ -17,6 +17,8 @@
     "stream": "stream-browserify",
     "crypto": "crypto-browserify",
     "url": "url/",
+    "util": "util",
+    "node:url": "url/",
     "fs": false,
     "vm": false
   },
@@ -81,6 +83,7 @@
     "rimraf": "^6.0.1",
     "stream-browserify": "^3.0.0",
     "url": "^0.11.4",
+    "util": "^0.12.5",
     "webdav": "^5.6.0",
     "xregexp": "^5.1.1"
   }

@@ -37,7 +37,7 @@ ob-sync-plugin/
                          │
               ┌──────────▼──────────┐
               │      main.ts        │  ← 插件入口，Plugin 子类
-              │  RemotelySavePlugin │
+              │  ObsSyncPlugin │
               └──────────┬──────────┘
                          │
         ┌────────────────┼──────────────────┐
@@ -76,7 +76,7 @@ ob-sync-plugin/
 ### 入口层
 
 #### `src/main.ts` — 插件主类
-Obsidian Plugin 子类 `RemotelySavePlugin`，负责：
+Obsidian Plugin 子类 `ObsSyncPlugin`，负责：
 - **生命周期**：`onload()` 初始化，`onunload()` 清理
 - **配置管理**：`loadSettings()` / `saveSettings()`，通过 `obfuscateSettingFile=false` 保存明文 JSON
 - **同步触发**：手动、定时、保存时自动触发同步
@@ -84,7 +84,7 @@ Obsidian Plugin 子类 `RemotelySavePlugin`，负责：
 - **UI 注册**：命令面板、状态栏、Ribbon 图标
 
 #### `src/settings.ts` — 设置面板
-实现 `RemotelySaveSettingTab`（Obsidian SettingTab），展示所有用户可配置项：
+实现 `ObsSyncSettingTab`（Obsidian SettingTab），展示所有用户可配置项：
 - 当前后端选择（WebDAV / OneDrive）
 - 后端连接参数
 - 同步行为（方向、冲突策略、定时间隔等）
@@ -205,7 +205,7 @@ export const checkProRunnableAndFixInplace = async (...) => {
 
 | 文件 | 说明 |
 |------|------|
-| `src/baseTypes.ts` | 所有核心类型定义（`Entity`、`MixedEntity`、`RemotelySavePluginSettings` 等） |
+| `src/baseTypes.ts` | 所有核心类型定义（`Entity`、`MixedEntity`、`ObsSyncPluginSettings` 等） |
 | `src/baseTypesObs.ts` | Obsidian 相关类型扩展 |
 | `src/misc.ts` | 通用工具函数（字符串、时间、路径处理等） |
 | `src/i18n.ts` | 国际化框架，根据 Obsidian 语言设置选择语言包 |

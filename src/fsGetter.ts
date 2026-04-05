@@ -1,4 +1,4 @@
-import type { RemotelySavePluginSettings } from "./baseTypes";
+import type { ObsSyncPluginSettings } from "./baseTypes";
 import type { FakeFs } from "./fsAll";
 import { FakeFsOnedrive } from "./fsOnedrive";
 import { FakeFsWebdav } from "./fsWebdav";
@@ -7,7 +7,7 @@ import { FakeFsWebdav } from "./fsWebdav";
  * To avoid circular dependency, we need a new file here.
  */
 export function getClient(
-  settings: RemotelySavePluginSettings,
+  settings: ObsSyncPluginSettings,
   vaultName: string,
   saveUpdatedConfigFunc: () => Promise<any>
 ): FakeFs {
