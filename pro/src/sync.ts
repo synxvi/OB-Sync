@@ -779,17 +779,6 @@ const getSyncPlanInplace = async (
               prevSync?.mtimeSvr === remote.mtimeSvr) &&
             prevSync?.sizeEnc === remote.sizeEnc;
 
-          // 诊断日志：记录 config 目录下文件的同步决策详情
-          if (key.startsWith(`${configDir}/`)) {
-            console.info(
-              `[OB Sync 诊断] 文件: ${key}\n` +
-              `  local:    mtimeCli=${local.mtimeCli}, sizeEnc=${local.sizeEnc}\n` +
-              `  remote:   mtimeCli=${remote.mtimeCli}, mtimeSvr=${remote.mtimeSvr}, sizeEnc=${remote.sizeEnc}\n` +
-              `  prevSync: mtimeCli=${prevSync?.mtimeCli}, mtimeSvr=${prevSync?.mtimeSvr}, sizeEnc=${prevSync?.sizeEnc}\n` +
-              `  比较结果: localEqualPrevSync=${localEqualPrevSync}, remoteEqualPrevSync=${remoteEqualPrevSync}`
-            );
-          }
-
           if (localEqualPrevSync && !remoteEqualPrevSync) {
             // If only one compares true (no prev also means it compares False), the other is modified. Backup and sync.
             if (
@@ -809,9 +798,6 @@ const getSyncPlanInplace = async (
                 mixedEntry.decision = "remote_is_modified_then_pull";
                 mixedEntry.change = true;
                 keptFolder.add(getParentFolder(key));
-                if (key.startsWith(`${configDir}/`)) {
-                  console.info(`[OB Sync 诊断] ${key} → 分支9: remote_is_modified_then_pull (远端被修改，拉取)`);
-                }
               }
             } else {
               throw Error(
@@ -839,9 +825,6 @@ const getSyncPlanInplace = async (
                 mixedEntry.decision = "local_is_modified_then_push";
                 mixedEntry.change = true;
                 keptFolder.add(getParentFolder(key));
-                if (key.startsWith(`${configDir}/`)) {
-                  console.info(`[OB Sync 诊断] ${key} → 分支10: local_is_modified_then_push (本地被修改，推送)`);
-                }
               }
             } else {
               throw Error(
@@ -868,23 +851,11 @@ const getSyncPlanInplace = async (
                     mixedEntry.decision = "conflict_created_then_keep_local";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
-                    if (key.startsWith(`${configDir}/`)) {
-                      console.info(
-                        `[OB Sync 诊断] ${key} → 分支11: conflict_created_then_keep_local (双方新建，保留本地，` +
-                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} >= remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
-                      );
-                    }
                   } else {
                     mixedEntry.decisionBranch = 12;
                     mixedEntry.decision = "conflict_created_then_keep_remote";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
-                    if (key.startsWith(`${configDir}/`)) {
-                      console.info(
-                        `[OB Sync 诊断] ${key} → 分支12: conflict_created_then_keep_remote (双方新建，保留远端，` +
-                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} < remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
-                      );
-                    }
                   }
                 } else if (conflictAction === "keep_larger") {
                   if (local.sizeEnc! >= remote.sizeEnc!) {
@@ -934,42 +905,11 @@ const getSyncPlanInplace = async (
                   (conflictAction === "smart_conflict" &&
                     key.startsWith(`${configDir}/`))
                 ) {
-                  // 修复：config 文件的 mtime 可能被插件在启动时重写（内容不变），
-                  // 导致误判为"双方修改"。通过比较 sizeEnc 判断内容是否真正改变。
-                  const localContentUnchanged =
-                    conflictAction === "smart_conflict" &&
-                    key.startsWith(`${configDir}/`) &&
-                    prevSync !== undefined &&
-                    local.sizeEnc === prevSync.sizeEnc;
-                  const remoteContentUnchanged =
-                    conflictAction === "smart_conflict" &&
-                    key.startsWith(`${configDir}/`) &&
-                    prevSync !== undefined &&
-                    remote.sizeEnc === prevSync.sizeEnc;
-
-                  if (localContentUnchanged && !remoteContentUnchanged) {
-                    // 本地内容未变（仅 mtime 被插件更新），远端有真正修改 → 拉取远端
-                    mixedEntry.decisionBranch = 9;
-                    mixedEntry.decision = "remote_is_modified_then_pull";
-                    mixedEntry.change = true;
-                    keptFolder.add(getParentFolder(key));
-                    if (key.startsWith(`${configDir}/`)) {
-                      console.info(
-                        `[OB Sync 诊断] ${key} → 分支9(修复): remote_is_modified_then_pull (本地 sizeEnc 未变=${local.sizeEnc}，远端 sizeEnc 已变=${remote.sizeEnc}，拉取远端)`
-                      );
-                    }
-                  } else if (!localContentUnchanged && remoteContentUnchanged) {
-                    // 远端内容未变，本地有真正修改 → 推送本地
-                    mixedEntry.decisionBranch = 10;
-                    mixedEntry.decision = "local_is_modified_then_push";
-                    mixedEntry.change = true;
-                    keptFolder.add(getParentFolder(key));
-                    if (key.startsWith(`${configDir}/`)) {
-                      console.info(
-                        `[OB Sync 诊断] ${key} → 分支10(修复): local_is_modified_then_push (远端 sizeEnc 未变=${remote.sizeEnc}，本地 sizeEnc 已变=${local.sizeEnc}，推送本地)`
-                      );
-                    }
-                  } else if (
+                  // 注意：config 文件的 mtime 可能被插件在冷启动时重写（内容不变但 mtime 更新），
+                  // 导致 plan 阶段误判为"双方修改"走 keep_newer。
+                  // 实际内容校验在 dispatch 阶段完成（比对 fileContentHistory），
+                  // 如果本地内容未变会自动改为拉取远端。
+                  if (
                     (local.mtimeCli ?? local.mtimeSvr ?? 0) >=
                     (remote.mtimeCli ?? remote.mtimeSvr ?? 0)
                   ) {
@@ -977,23 +917,11 @@ const getSyncPlanInplace = async (
                     mixedEntry.decision = "conflict_modified_then_keep_local";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
-                    if (key.startsWith(`${configDir}/`)) {
-                      console.info(
-                        `[OB Sync 诊断] ${key} → 分支16: conflict_modified_then_keep_local (双方修改，保留本地，` +
-                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} >= remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
-                      );
-                    }
                   } else {
                     mixedEntry.decisionBranch = 17;
                     mixedEntry.decision = "conflict_modified_then_keep_remote";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
-                    if (key.startsWith(`${configDir}/`)) {
-                      console.info(
-                        `[OB Sync 诊断] ${key} → 分支17: conflict_modified_then_keep_remote (双方修改，保留远端，` +
-                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} < remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
-                      );
-                    }
                   }
                 } else if (conflictAction === "keep_larger") {
                   if (local.sizeEnc! >= remote.sizeEnc!) {
@@ -1567,6 +1495,65 @@ const dispatchOperationToActualV3 = async (
     r.decision === "conflict_created_then_keep_local" ||
     r.decision === "conflict_modified_then_keep_local"
   ) {
+    // 修复：config 文件的 mtime 可能被插件冷启动时重写（内容不变但 mtime 和 size 都可能不变），
+    // 导致误判为"双方修改"后走 keep_newer 选中本地。
+    // 通过比对本地文件内容与 fileContentHistory 来检测内容是否真正改变。
+    // 如果内容未变，则改为拉取远端（远端的修改更可能是用户主动操作的结果）。
+    if (
+      r.decision === "conflict_modified_then_keep_local" &&
+      conflictAction === "smart_conflict" &&
+      r.key.startsWith(`${settings.configDir}/`) &&
+      isMergable(r.local!)
+    ) {
+      const prevContent = await getFileContentHistoryByVaultAndProfile(
+        db,
+        vaultRandomID,
+        profileID,
+        r.local!
+      );
+      if (prevContent !== null && prevContent !== undefined) {
+        const localContent = await fsLocal.readFile(r.local!.keyRaw);
+        if (localContent !== null && localContent !== undefined) {
+          const contentMatch =
+            prevContent.byteLength === localContent.byteLength &&
+            (prevContent.byteLength === 0 ||
+              new Uint8Array(prevContent).every(
+                (byte, i) => byte === new Uint8Array(localContent)[i]
+              ));
+          if (contentMatch) {
+            // 本地内容与上次同步一致，说明本地文件未被用户真正修改（仅 mtime 被插件更新）
+            // 改为拉取远端版本
+            console.info(
+              `[OB Sync 修复] ${r.key} → 本地内容未变（仅 mtime 被插件更新），改为拉取远端`
+            );
+            // 执行拉取远端操作
+            if (r.key.endsWith("/")) {
+              await fsLocal.mkdir(r.key);
+            } else {
+              await copyFile(r.key, fsEncrypt, fsLocal);
+            }
+            await upsertPrevSyncRecordByVaultAndProfile(
+              db,
+              vaultRandomID,
+              profileID,
+              r.remote!
+            );
+            if (isMergable(r.remote!)) {
+              const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
+              await upsertFileContentHistoryByVaultAndProfile(
+                db,
+                vaultRandomID,
+                profileID,
+                r.remote!,
+                pulledContent!
+              );
+            }
+            return;
+          }
+        }
+      }
+    }
+
     // console.debug(`before upload in sync, r=${JSON.stringify(r, null, 2)}`);
     const mtimeCli = (await fsLocal.stat(r.key)).mtimeCli!;
     const { entity, content } = await copyFileOrFolder(

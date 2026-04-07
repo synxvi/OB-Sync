@@ -27,7 +27,7 @@ export function isMergable(a: Entity, b?: Entity) {
   return (
     !a.key!.endsWith("/") &&
     a.sizeRaw <= MERGABLE_SIZE &&
-    (a.key!.endsWith(".md") || a.key!.endsWith(".markdown"))
+    (a.key!.endsWith(".md") || a.key!.endsWith(".markdown") || a.key!.endsWith(".json"))
   );
 }
 
