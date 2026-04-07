@@ -1551,6 +1551,44 @@ const dispatchOperationToActualV3 = async (
             return;
           }
         }
+      } else {
+        // fileContentHistory 不存在（首次安装此版本时 JSON 文件还没有历史记录）
+        // 直接读取本地和远端文件内容进行比对
+        const localContent = await fsLocal.readFile(r.local!.keyRaw);
+        const remoteContent = await fsEncrypt.readFile(r.key);
+        if (localContent !== null && remoteContent !== null &&
+            localContent !== undefined && remoteContent !== undefined) {
+          const contentsDifferent =
+            localContent.byteLength !== remoteContent.byteLength ||
+            (localContent.byteLength > 0 &&
+              !new Uint8Array(localContent).every(
+                (byte, i) => byte === new Uint8Array(remoteContent)[i]
+              ));
+          if (contentsDifferent) {
+            // 本地 ≠ 远端 → 远端是用户主动修改的结果 → 拉取远端
+            console.info(
+              `[OB Sync 修复] ${r.key} → 无 fileContentHistory，本地与远端内容不同，拉取远端`
+            );
+            await copyFile(r.key, fsEncrypt, fsLocal);
+            await upsertPrevSyncRecordByVaultAndProfile(
+              db,
+              vaultRandomID,
+              profileID,
+              r.remote!
+            );
+            if (isMergable(r.remote!)) {
+              const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
+              await upsertFileContentHistoryByVaultAndProfile(
+                db,
+                vaultRandomID,
+                profileID,
+                r.remote!,
+                pulledContent!
+              );
+            }
+            return;
+          }
+        }
       }
     }
 
