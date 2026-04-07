@@ -779,6 +779,17 @@ const getSyncPlanInplace = async (
               prevSync?.mtimeSvr === remote.mtimeSvr) &&
             prevSync?.sizeEnc === remote.sizeEnc;
 
+          // 诊断日志：记录 config 目录下文件的同步决策详情
+          if (key.startsWith(`${configDir}/`)) {
+            console.info(
+              `[OB Sync 诊断] 文件: ${key}\n` +
+              `  local:    mtimeCli=${local.mtimeCli}, sizeEnc=${local.sizeEnc}\n` +
+              `  remote:   mtimeCli=${remote.mtimeCli}, mtimeSvr=${remote.mtimeSvr}, sizeEnc=${remote.sizeEnc}\n` +
+              `  prevSync: mtimeCli=${prevSync?.mtimeCli}, mtimeSvr=${prevSync?.mtimeSvr}, sizeEnc=${prevSync?.sizeEnc}\n` +
+              `  比较结果: localEqualPrevSync=${localEqualPrevSync}, remoteEqualPrevSync=${remoteEqualPrevSync}`
+            );
+          }
+
           if (localEqualPrevSync && !remoteEqualPrevSync) {
             // If only one compares true (no prev also means it compares False), the other is modified. Backup and sync.
             if (
@@ -798,6 +809,9 @@ const getSyncPlanInplace = async (
                 mixedEntry.decision = "remote_is_modified_then_pull";
                 mixedEntry.change = true;
                 keptFolder.add(getParentFolder(key));
+                if (key.startsWith(`${configDir}/`)) {
+                  console.info(`[OB Sync 诊断] ${key} → 分支9: remote_is_modified_then_pull (远端被修改，拉取)`);
+                }
               }
             } else {
               throw Error(
@@ -825,6 +839,9 @@ const getSyncPlanInplace = async (
                 mixedEntry.decision = "local_is_modified_then_push";
                 mixedEntry.change = true;
                 keptFolder.add(getParentFolder(key));
+                if (key.startsWith(`${configDir}/`)) {
+                  console.info(`[OB Sync 诊断] ${key} → 分支10: local_is_modified_then_push (本地被修改，推送)`);
+                }
               }
             } else {
               throw Error(
@@ -851,11 +868,23 @@ const getSyncPlanInplace = async (
                     mixedEntry.decision = "conflict_created_then_keep_local";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
+                    if (key.startsWith(`${configDir}/`)) {
+                      console.info(
+                        `[OB Sync 诊断] ${key} → 分支11: conflict_created_then_keep_local (双方新建，保留本地，` +
+                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} >= remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
+                      );
+                    }
                   } else {
                     mixedEntry.decisionBranch = 12;
                     mixedEntry.decision = "conflict_created_then_keep_remote";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
+                    if (key.startsWith(`${configDir}/`)) {
+                      console.info(
+                        `[OB Sync 诊断] ${key} → 分支12: conflict_created_then_keep_remote (双方新建，保留远端，` +
+                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} < remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
+                      );
+                    }
                   }
                 } else if (conflictAction === "keep_larger") {
                   if (local.sizeEnc! >= remote.sizeEnc!) {
@@ -913,11 +942,23 @@ const getSyncPlanInplace = async (
                     mixedEntry.decision = "conflict_modified_then_keep_local";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
+                    if (key.startsWith(`${configDir}/`)) {
+                      console.info(
+                        `[OB Sync 诊断] ${key} → 分支16: conflict_modified_then_keep_local (双方修改，保留本地，` +
+                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} >= remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
+                      );
+                    }
                   } else {
                     mixedEntry.decisionBranch = 17;
                     mixedEntry.decision = "conflict_modified_then_keep_remote";
                     mixedEntry.change = true;
                     keptFolder.add(getParentFolder(key));
+                    if (key.startsWith(`${configDir}/`)) {
+                      console.info(
+                        `[OB Sync 诊断] ${key} → 分支17: conflict_modified_then_keep_remote (双方修改，保留远端，` +
+                        `local.mtime=${local.mtimeCli ?? local.mtimeSvr} < remote.mtime=${remote.mtimeCli ?? remote.mtimeSvr})`
+                      );
+                    }
                   }
                 } else if (conflictAction === "keep_larger") {
                   if (local.sizeEnc! >= remote.sizeEnc!) {
