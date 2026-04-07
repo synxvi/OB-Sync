@@ -934,7 +934,42 @@ const getSyncPlanInplace = async (
                   (conflictAction === "smart_conflict" &&
                     key.startsWith(`${configDir}/`))
                 ) {
-                  if (
+                  // 修复：config 文件的 mtime 可能被插件在启动时重写（内容不变），
+                  // 导致误判为"双方修改"。通过比较 sizeEnc 判断内容是否真正改变。
+                  const localContentUnchanged =
+                    conflictAction === "smart_conflict" &&
+                    key.startsWith(`${configDir}/`) &&
+                    prevSync !== undefined &&
+                    local.sizeEnc === prevSync.sizeEnc;
+                  const remoteContentUnchanged =
+                    conflictAction === "smart_conflict" &&
+                    key.startsWith(`${configDir}/`) &&
+                    prevSync !== undefined &&
+                    remote.sizeEnc === prevSync.sizeEnc;
+
+                  if (localContentUnchanged && !remoteContentUnchanged) {
+                    // 本地内容未变（仅 mtime 被插件更新），远端有真正修改 → 拉取远端
+                    mixedEntry.decisionBranch = 9;
+                    mixedEntry.decision = "remote_is_modified_then_pull";
+                    mixedEntry.change = true;
+                    keptFolder.add(getParentFolder(key));
+                    if (key.startsWith(`${configDir}/`)) {
+                      console.info(
+                        `[OB Sync 诊断] ${key} → 分支9(修复): remote_is_modified_then_pull (本地 sizeEnc 未变=${local.sizeEnc}，远端 sizeEnc 已变=${remote.sizeEnc}，拉取远端)`
+                      );
+                    }
+                  } else if (!localContentUnchanged && remoteContentUnchanged) {
+                    // 远端内容未变，本地有真正修改 → 推送本地
+                    mixedEntry.decisionBranch = 10;
+                    mixedEntry.decision = "local_is_modified_then_push";
+                    mixedEntry.change = true;
+                    keptFolder.add(getParentFolder(key));
+                    if (key.startsWith(`${configDir}/`)) {
+                      console.info(
+                        `[OB Sync 诊断] ${key} → 分支10(修复): local_is_modified_then_push (远端 sizeEnc 未变=${remote.sizeEnc}，本地 sizeEnc 已变=${local.sizeEnc}，推送本地)`
+                      );
+                    }
+                  } else if (
                     (local.mtimeCli ?? local.mtimeSvr ?? 0) >=
                     (remote.mtimeCli ?? remote.mtimeSvr ?? 0)
                   ) {
