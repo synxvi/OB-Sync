@@ -2137,4 +2137,5 @@ export async function syncer(
 
   console.info(`ending sync.`);
   markIsSyncingFunc(false);
+  return everythingOk;
 }

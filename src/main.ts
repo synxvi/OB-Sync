@@ -418,7 +418,7 @@ export default class ObsSyncPlugin extends Plugin {
 
     const configSaver = async () => await this.saveSettings();
 
-    await syncer(
+    const syncOk = await syncer(
       fsLocal,
       fsRemote,
       fsEncrypt,
@@ -443,6 +443,27 @@ export default class ObsSyncPlugin extends Plugin {
 
     fsEncrypt.closeResources();
     (profiler as Profiler | undefined)?.clear();
+
+    // 手机端同步成功后，重载标记的只读插件以应用最新配置
+    if (Platform.isMobile && syncOk) {
+      const roPlugins = this.settings.mobileReadOnlyPlugins ?? [];
+      if (roPlugins.length > 0) {
+        console.info(`[OB Sync] 同步完成，开始重载 ${roPlugins.length} 个只读插件...`);
+        for (const pluginId of roPlugins) {
+          try {
+            // @ts-ignore Obsidian 内部 API
+            const pluginEnabled = this.app.plugins?.enabledPlugins?.has(pluginId);
+            if (pluginEnabled) {
+              await this.app.plugins.disablePlugin(pluginId);
+              await this.app.plugins.enablePlugin(pluginId);
+              console.info(`[OB Sync] 已重载插件: ${pluginId}`);
+            }
+          } catch (e) {
+            console.warn(`[OB Sync] 重载插件 ${pluginId} 失败:`, e);
+          }
+        }
+      }
+    }
 
     this.syncEvent?.trigger("SYNC_DONE");
   }
