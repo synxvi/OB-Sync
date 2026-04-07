@@ -1495,16 +1495,23 @@ const dispatchOperationToActualV3 = async (
     r.decision === "conflict_created_then_keep_local" ||
     r.decision === "conflict_modified_then_keep_local"
   ) {
-    // 修复：config 文件的 mtime 可能被插件冷启动时重写（内容不变但 mtime 和 size 都可能不变），
-    // 导致误判为"双方修改"后走 keep_newer 选中本地。
-    // 通过比对本地文件内容与 fileContentHistory 来检测内容是否真正改变。
-    // 如果内容未变，则改为拉取远端（远端的修改更可能是用户主动操作的结果）。
-    if (
-      r.decision === "conflict_modified_then_keep_local" &&
+    // 修复：插件 JSON 配置文件的 mtime 可能被其他插件冷启动时重写（内容不变但 mtime 更新），
+    // 导致同步算法误判为"本地已修改"并推送旧内容覆盖远端。
+    // 通过内容比对检测本地是否真正改变：
+    //   - 有 fileContentHistory → 比对本地 vs 历史
+    //   - 无 fileContentHistory → 比对本地 vs 远端
+    // 如果本地内容未真正改变，改为拉取远端（远端的修改更可能是用户主动操作的结果）。
+    const isPluginJsonPushDecision =
       conflictAction === "smart_conflict" &&
       r.key.startsWith(`.obsidian/plugins/`) &&
-      r.key.endsWith(".json")
-    ) {
+      r.key.endsWith(".json") &&
+      !r.key.endsWith("/") &&
+      (
+        r.decision === "conflict_modified_then_keep_local" ||
+        r.decision === "conflict_created_then_keep_local" ||
+        r.decision === "local_is_modified_then_push"
+      );
+    if (isPluginJsonPushDecision) {
       const prevContent = await getFileContentHistoryByVaultAndProfile(
         db,
         vaultRandomID,
