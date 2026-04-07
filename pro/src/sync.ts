@@ -1177,6 +1177,39 @@ const getSyncPlanInplace = async (
 
   profiler?.insert("getSyncPlanInplace: finish looping");
 
+  // 修复：检测插件 JSON 配置文件的"假修改"
+  // 当插件（如 Iconic）冷启动时重写 data.json，内容不变但 mtime 更新，
+  // 同步算法会误判为"本地已修改"。通过比较 local 与 prevSync 的 sizeEnc 来检测：
+  // 如果 size 相同，说明内容未真正改变（只是 mtime 被插件更新），应拉取远端。
+  for (let fixIdx = 0; fixIdx < sortedKeys.length; fixIdx++) {
+    const fixKey = sortedKeys[fixIdx];
+    if (fixKey === "/$@meta" || !fixKey.endsWith(".json") || fixKey.endsWith("/")) continue;
+    if (!fixKey.startsWith(`${configDir}/plugins/`)) continue;
+
+    const fixEntry = mixedEntityMappings[fixKey];
+    if (!fixEntry?.local || !fixEntry?.prevSync || !fixEntry?.remote) continue;
+    if (!fixEntry.change) continue; // 只修复有变更的条目
+
+    const fixLocal = fixEntry.local;
+    const fixPrev = fixEntry.prevSync;
+
+    // 本地 size 与上次同步一致 → 内容未真正改变（仅 mtime 被插件更新）
+    if (fixLocal.sizeEnc === fixPrev.sizeEnc) {
+      if (
+        fixEntry.decision === "local_is_modified_then_push" ||
+        fixEntry.decision === "conflict_modified_then_keep_local"
+      ) {
+        console.info(
+          `[OB Sync 计划修复] ${fixKey} → 本地 size(${fixLocal.sizeEnc}) === prevSync size(${fixPrev.sizeEnc})，` +
+          `判定为插件冷启动重写（仅 mtime 更新），决策从 ${fixEntry.decision} 改为拉取远端`
+        );
+        fixEntry.decision = "conflict_modified_then_keep_remote";
+        fixEntry.decisionBranch = 9001;
+        fixEntry.change = true;
+      }
+    }
+  }
+
   keptFolder.delete("/");
   keptFolder.delete("");
   if (keptFolder.size > 0) {
