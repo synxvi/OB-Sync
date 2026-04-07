@@ -152,6 +152,8 @@
   "settings_ignorepaths_desc": "Regex of paths of folders or files to ignore. One regex per line. The path is relative to the vault root without leading slash. Non-empty allow paths and non-empty ignore paths are effective together.",
   "settings_onlyallowpaths": "Regex Of Paths To Allow",
   "settings_onlyallowpaths_desc": "Regex of paths of folders or files to allow to sync. One regex per line. The path is relative to the vault root without leading slash. If this setting is not empty, all paths you want to sync including config dirs must be explicitly set here. Non-empty allow paths and non-empty ignore paths are effective together.",
+  "settings_mobile_readonly_plugins": "Mobile Read-Only Plugins",
+  "settings_mobile_readonly_plugins_desc": "Selected plugins will only pull data from remote on mobile devices and will NOT push local changes to remote. This prevents plugin cold-start rewrites from overwriting remote config. This setting must be configured on the mobile device separately.",
   "settings_enablestatusbar_info": "Show Last Successful Sync In Status Bar",
   "settings_enablestatusbar_info_desc": "Show the time of the last successful sync in the status bar.",
   "settings_enablestatusbar_reloadrequired_notice": "Reload the plugin for the changes to take effect.",

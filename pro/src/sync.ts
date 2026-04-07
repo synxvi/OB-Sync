@@ -530,7 +530,9 @@ const getSyncPlanInplace = async (
   profiler: Profiler | undefined,
   settings: ObsSyncPluginSettings,
   triggerSource: SyncTriggerSourceType,
-  configDir: string
+  configDir: string,
+  isMobile: boolean,
+  mobileReadOnlyPlugins: string[]
 ) => {
   profiler?.addIndent();
   profiler?.insert("getSyncPlanInplace: enter");
@@ -1177,35 +1179,55 @@ const getSyncPlanInplace = async (
 
   profiler?.insert("getSyncPlanInplace: finish looping");
 
-  // 修复：检测插件 JSON 配置文件的"假修改"
-  // 当插件（如 Iconic）冷启动时重写 data.json，内容不变但 mtime 更新，
-  // 同步算法会误判为"本地已修改"。通过比较 local 与 prevSync 的 sizeEnc 来检测：
-  // 如果 size 相同，说明内容未真正改变（只是 mtime 被插件更新），应拉取远端。
-  for (let fixIdx = 0; fixIdx < sortedKeys.length; fixIdx++) {
-    const fixKey = sortedKeys[fixIdx];
-    if (fixKey === "/$@meta" || !fixKey.endsWith(".json") || fixKey.endsWith("/")) continue;
-    if (!fixKey.startsWith(`${configDir}/plugins/`)) continue;
+  // 移动端只读插件：禁止将标记插件的数据推送到远程
+  // 在手机端，如果文件属于用户标记的"只读插件"，将所有 push 类决策转换为 pull/skip
+  if (isMobile && mobileReadOnlyPlugins.length > 0) {
+    for (let mrIdx = 0; mrIdx < sortedKeys.length; mrIdx++) {
+      const mrKey = sortedKeys[mrIdx];
+      if (mrKey === "/$@meta" || mrKey.endsWith("/") || !mrKey.startsWith(`${configDir}/plugins/`)) continue;
 
-    const fixEntry = mixedEntityMappings[fixKey];
-    if (!fixEntry?.local || !fixEntry?.prevSync || !fixEntry?.remote) continue;
-    if (!fixEntry.change) continue; // 只修复有变更的条目
+      // 从 key 提取 pluginId，格式：.obsidian/plugins/{pluginId}/xxx
+      const pluginsPrefix = `${configDir}/plugins/`;
+      const afterPlugins = mrKey.slice(pluginsPrefix.length);
+      const slashIdx = afterPlugins.indexOf("/");
+      if (slashIdx === -1) continue;
+      const pluginId = afterPlugins.slice(0, slashIdx);
 
-    const fixLocal = fixEntry.local;
-    const fixPrev = fixEntry.prevSync;
+      if (!mobileReadOnlyPlugins.includes(pluginId)) continue;
 
-    // 本地 size 与上次同步一致 → 内容未真正改变（仅 mtime 被插件更新）
-    if (fixLocal.sizeEnc === fixPrev.sizeEnc) {
+      const mrEntry = mixedEntityMappings[mrKey];
+      if (!mrEntry || !mrEntry.change) continue;
+
+      const origDecision = mrEntry.decision;
       if (
-        fixEntry.decision === "local_is_modified_then_push" ||
-        fixEntry.decision === "conflict_modified_then_keep_local"
+        origDecision === "local_is_modified_then_push" ||
+        origDecision === "conflict_modified_then_keep_local"
       ) {
+        mrEntry.decision = "conflict_modified_then_keep_remote";
+        mrEntry.decisionBranch = 9002;
         console.info(
-          `[OB Sync 计划修复] ${fixKey} → 本地 size(${fixLocal.sizeEnc}) === prevSync size(${fixPrev.sizeEnc})，` +
-          `判定为插件冷启动重写（仅 mtime 更新），决策从 ${fixEntry.decision} 改为拉取远端`
+          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_modified_then_keep_remote`
         );
-        fixEntry.decision = "conflict_modified_then_keep_remote";
-        fixEntry.decisionBranch = 9001;
-        fixEntry.change = true;
+      } else if (origDecision === "local_is_created_then_push") {
+        mrEntry.decision = "conflict_created_then_do_nothing";
+        mrEntry.decisionBranch = 9002;
+        mrEntry.change = false;
+        console.info(
+          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_created_then_do_nothing`
+        );
+      } else if (origDecision === "conflict_created_then_keep_local") {
+        mrEntry.decision = "conflict_created_then_keep_remote";
+        mrEntry.decisionBranch = 9002;
+        console.info(
+          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_created_then_keep_remote`
+        );
+      } else if (origDecision === "local_is_deleted_thus_also_delete_remote") {
+        mrEntry.decision = "conflict_created_then_do_nothing";
+        mrEntry.decisionBranch = 9002;
+        mrEntry.change = false;
+        console.info(
+          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_created_then_do_nothing`
+        );
       }
     }
   }
@@ -1528,107 +1550,6 @@ const dispatchOperationToActualV3 = async (
     r.decision === "conflict_created_then_keep_local" ||
     r.decision === "conflict_modified_then_keep_local"
   ) {
-    // 修复：插件 JSON 配置文件的 mtime 可能被其他插件冷启动时重写（内容不变但 mtime 更新），
-    // 导致同步算法误判为"本地已修改"并推送旧内容覆盖远端。
-    // 通过内容比对检测本地是否真正改变：
-    //   - 有 fileContentHistory → 比对本地 vs 历史
-    //   - 无 fileContentHistory → 比对本地 vs 远端
-    // 如果本地内容未真正改变，改为拉取远端（远端的修改更可能是用户主动操作的结果）。
-    const isPluginJsonPushDecision =
-      conflictAction === "smart_conflict" &&
-      r.key.startsWith(`.obsidian/plugins/`) &&
-      r.key.endsWith(".json") &&
-      !r.key.endsWith("/") &&
-      (
-        r.decision === "conflict_modified_then_keep_local" ||
-        r.decision === "conflict_created_then_keep_local" ||
-        r.decision === "local_is_modified_then_push"
-      );
-    if (isPluginJsonPushDecision) {
-      const prevContent = await getFileContentHistoryByVaultAndProfile(
-        db,
-        vaultRandomID,
-        profileID,
-        r.local!
-      );
-      if (prevContent !== null && prevContent !== undefined) {
-        const localContent = await fsLocal.readFile(r.local!.keyRaw);
-        if (localContent !== null && localContent !== undefined) {
-          const contentMatch =
-            prevContent.byteLength === localContent.byteLength &&
-            (prevContent.byteLength === 0 ||
-              new Uint8Array(prevContent).every(
-                (byte, i) => byte === new Uint8Array(localContent)[i]
-              ));
-          if (contentMatch) {
-            // 本地内容与上次同步一致，说明本地文件未被用户真正修改（仅 mtime 被插件更新）
-            // 改为拉取远端版本
-            console.info(
-              `[OB Sync 修复] ${r.key} → 本地内容未变（仅 mtime 被插件更新），改为拉取远端`
-            );
-            // 执行拉取远端操作
-            if (r.key.endsWith("/")) {
-              await fsLocal.mkdir(r.key);
-            } else {
-              await copyFile(r.key, fsEncrypt, fsLocal);
-            }
-            await upsertPrevSyncRecordByVaultAndProfile(
-              db,
-              vaultRandomID,
-              profileID,
-              r.remote!
-            );
-            // 存储 fileContentHistory 以便后续同步使用
-            const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
-            await upsertFileContentHistoryByVaultAndProfile(
-              db,
-              vaultRandomID,
-              profileID,
-              r.remote!,
-              pulledContent!
-            );
-            return;
-          }
-        }
-      } else {
-        // fileContentHistory 不存在（首次安装此版本时 JSON 文件还没有历史记录）
-        // 直接读取本地和远端文件内容进行比对
-        const localContent = await fsLocal.readFile(r.local!.keyRaw);
-        const remoteContent = await fsEncrypt.readFile(r.key);
-        if (localContent !== null && remoteContent !== null &&
-            localContent !== undefined && remoteContent !== undefined) {
-          const contentsDifferent =
-            localContent.byteLength !== remoteContent.byteLength ||
-            (localContent.byteLength > 0 &&
-              !new Uint8Array(localContent).every(
-                (byte, i) => byte === new Uint8Array(remoteContent)[i]
-              ));
-          if (contentsDifferent) {
-            // 本地 ≠ 远端 → 远端是用户主动修改的结果 → 拉取远端
-            console.info(
-              `[OB Sync 修复] ${r.key} → 无 fileContentHistory，本地与远端内容不同，拉取远端`
-            );
-            await copyFile(r.key, fsEncrypt, fsLocal);
-            await upsertPrevSyncRecordByVaultAndProfile(
-              db,
-              vaultRandomID,
-              profileID,
-              r.remote!
-            );
-            const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
-            await upsertFileContentHistoryByVaultAndProfile(
-              db,
-              vaultRandomID,
-              profileID,
-              r.remote!,
-              pulledContent!
-            );
-            return;
-          }
-        }
-      }
-    }
-
     // console.debug(`before upload in sync, r=${JSON.stringify(r, null, 2)}`);
     const mtimeCli = (await fsLocal.stat(r.key)).mtimeCli!;
     const { entity, content } = await copyFileOrFolder(
@@ -2050,7 +1971,8 @@ export async function syncer(
     step: number,
     everythingOk: boolean
   ) => any,
-  callbackSyncProcess?: any
+  callbackSyncProcess?: any,
+  isMobile?: boolean
 ) {
   console.info(`starting sync.`);
   markIsSyncingFunc(true);
@@ -2146,7 +2068,9 @@ export async function syncer(
       profiler,
       settings,
       triggerSource,
-      configDir
+      configDir,
+      isMobile ?? false,
+      settings.mobileReadOnlyPlugins ?? []
     );
     console.debug(`mixedEntityMappings:`);
     console.debug(mixedEntityMappings); // for debugging

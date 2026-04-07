@@ -151,6 +151,8 @@
   "settings_ignorepaths_desc": "忽略的文件或文件夹的正则表达式。每行一条。路径是相对于库（Vault）根目录的，没有前置 / 符号。非空的忽略列表和非空的允许列表会一起生效。",
   "settings_onlyallowpaths": "允许同步的文件或文件夹的正则表达式",
   "settings_onlyallowpaths_desc": "允许同步的文件或文件夹的正则表达式。每行一条。路径是相对于库（Vault）根目录的，没有前置 / 符号。如果这个设置非空，那么所有您想同步的路径（包括隐藏的设置文件夹）都要明确地列出到这里。非空的忽略列表和非空的允许列表会一起生效。",
+  "settings_mobile_readonly_plugins": "移动端只读插件",
+  "settings_mobile_readonly_plugins_desc": "选中的插件在手机端只从远程拉取数据，不会将本地修改推送到远程。适用于防止插件冷启动重写覆盖远端配置。此设置需要在手机端单独配置。",
   "settings_enablestatusbar_info": "在状态栏显示上一次成功的同步",
   "settings_enablestatusbar_info_desc": "在状态栏显示上一次成功的同步的时间。",
   "settings_enablestatusbar_reloadrequired_notice": "需要重新载入此插件才生效。",

@@ -132,6 +132,9 @@ export interface ObsSyncPluginSettings {
    * @deprecated
    */
   howToCleanEmptyFolder?: EmptyFolderCleanType;
+
+  /** 手机端只拉取不推送的插件 ID 列表 */
+  mobileReadOnlyPlugins?: string[];
 }
 
 export const COMMAND_URI = "ob-sync";

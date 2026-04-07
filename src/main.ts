@@ -86,6 +86,7 @@ const DEFAULT_SETTINGS: ObsSyncPluginSettings = {
   enableMobileStatusBar: false,
   encryptionMethod: "unknown",
   profiler: DEFAULT_PROFILER_CONFIG,
+  mobileReadOnlyPlugins: [],
 };
 
 interface OAuth2Info {
@@ -436,7 +437,8 @@ export default class ObsSyncPlugin extends Plugin {
       errNotifyFunc,
       ribboonFunc,
       statusBarFunc,
-      callbackSyncProcess
+      callbackSyncProcess,
+      Platform.isMobile
     );
 
     fsEncrypt.closeResources();

@@ -443,7 +443,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  display(): void {
+  async display(): Promise<void> {
     const { containerEl } = this;
     containerEl.style.setProperty("overflow-wrap", "break-word");
 
@@ -1067,6 +1067,66 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
         textArea.inputEl.addClass("onlyallowpaths-textarea");
       });
+
+    // 移动端只读插件
+    const mobileReadOnlyDiv = containerEl.createEl("div");
+    mobileReadOnlyDiv.createEl("h2", { text: t("settings_mobile_readonly_plugins") });
+    mobileReadOnlyDiv.createEl("p", {
+      text: t("settings_mobile_readonly_plugins_desc"),
+      cls: "setting-item-description"
+    });
+
+    try {
+      const communityPluginsStr = await this.plugin.app.vault.adapter.read(
+        ".obsidian/community-plugins.json"
+      );
+      const enabledPluginIds: string[] = JSON.parse(communityPluginsStr);
+
+      for (const pluginId of enabledPluginIds) {
+        let displayName = pluginId;
+        try {
+          const manifestStr = await this.plugin.app.vault.adapter.read(
+            `.obsidian/plugins/${pluginId}/manifest.json`
+          );
+          const manifest = JSON.parse(manifestStr);
+          displayName = manifest.name ?? pluginId;
+        } catch {
+          // 无法读取 manifest，使用 pluginId 作为显示名
+        }
+
+        new Setting(mobileReadOnlyDiv)
+          .setName(displayName)
+          .setDesc(pluginId)
+          .addToggle((toggle) => {
+            toggle
+              .setValue(
+                (this.plugin.settings.mobileReadOnlyPlugins ?? []).includes(
+                  pluginId
+                )
+              )
+              .onChange(async (val) => {
+                const current =
+                  this.plugin.settings.mobileReadOnlyPlugins ?? [];
+                if (val) {
+                  this.plugin.settings.mobileReadOnlyPlugins = [
+                    ...current,
+                    pluginId,
+                  ];
+                } else {
+                  this.plugin.settings.mobileReadOnlyPlugins = current.filter(
+                    (id) => id !== pluginId
+                  );
+                }
+                await this.plugin.saveSettings();
+              });
+          });
+      }
+    } catch {
+      mobileReadOnlyDiv.createEl("p", {
+        text: "无法读取已安装的插件列表",
+        cls: "setting-item-description"
+      });
+    }
 
     //////////////////////////////////////////////////
     // below for advanced settings
