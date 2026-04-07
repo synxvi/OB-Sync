@@ -1502,7 +1502,7 @@ const dispatchOperationToActualV3 = async (
     if (
       r.decision === "conflict_modified_then_keep_local" &&
       conflictAction === "smart_conflict" &&
-      r.key.startsWith(`${settings.configDir}/`) &&
+      r.key.startsWith(`.obsidian/plugins/`) &&
       isMergable(r.local!)
     ) {
       const prevContent = await getFileContentHistoryByVaultAndProfile(
