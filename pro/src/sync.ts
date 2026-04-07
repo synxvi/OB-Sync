@@ -1503,7 +1503,7 @@ const dispatchOperationToActualV3 = async (
       r.decision === "conflict_modified_then_keep_local" &&
       conflictAction === "smart_conflict" &&
       r.key.startsWith(`.obsidian/plugins/`) &&
-      isMergable(r.local!)
+      r.key.endsWith(".json")
     ) {
       const prevContent = await getFileContentHistoryByVaultAndProfile(
         db,
@@ -1538,16 +1538,15 @@ const dispatchOperationToActualV3 = async (
               profileID,
               r.remote!
             );
-            if (isMergable(r.remote!)) {
-              const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
-              await upsertFileContentHistoryByVaultAndProfile(
-                db,
-                vaultRandomID,
-                profileID,
-                r.remote!,
-                pulledContent!
-              );
-            }
+            // 存储 fileContentHistory 以便后续同步使用
+            const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
+            await upsertFileContentHistoryByVaultAndProfile(
+              db,
+              vaultRandomID,
+              profileID,
+              r.remote!,
+              pulledContent!
+            );
             return;
           }
         }
@@ -1576,16 +1575,14 @@ const dispatchOperationToActualV3 = async (
               profileID,
               r.remote!
             );
-            if (isMergable(r.remote!)) {
-              const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
-              await upsertFileContentHistoryByVaultAndProfile(
-                db,
-                vaultRandomID,
-                profileID,
-                r.remote!,
-                pulledContent!
-              );
-            }
+            const pulledContent = await fsLocal.readFile(r.local!.keyRaw);
+            await upsertFileContentHistoryByVaultAndProfile(
+              db,
+              vaultRandomID,
+              profileID,
+              r.remote!,
+              pulledContent!
+            );
             return;
           }
         }
