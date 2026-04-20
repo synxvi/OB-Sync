@@ -135,6 +135,11 @@ export interface ObsSyncPluginSettings {
 
   /** 手机端只拉取不推送的插件 ID 列表 */
   mobileReadOnlyPlugins?: string[];
+
+  /** 启用设备级配置同步模式 */
+  enableDeviceConfigSync?: boolean;
+  /** 设备配置档案，key 为 deviceId */
+  deviceProfiles?: Record<string, DeviceConfigProfile>;
 }
 
 export const COMMAND_URI = "ob-sync";
@@ -157,6 +162,50 @@ export type ConflictActionType =
   | "keep_newer"
   | "keep_larger"
   | "smart_conflict";
+
+/** 配置同步类别：.obsidian 下的文件分组 */
+export type ConfigSyncCategory =
+  | "appearance"
+  | "app"
+  | "bookmarks"
+  | "communityPlugins"
+  | "corePlugins"
+  | "hotkeys"
+  | "graph"
+  | "snippets"
+  | "themes"
+  | "pluginsData";
+
+/** 配置同步模式 */
+export type ConfigSyncMode = "sync" | "pull_only" | "push_only" | "skip";
+
+/** 设备配置档案 */
+export interface DeviceConfigProfile {
+  deviceId: string;
+  deviceName: string;
+  platform: "desktop" | "mobile";
+  registeredAt: number;
+  /** 每个类别的同步模式，未设置的类别默认为 "sync" */
+  categorySyncModes: Partial<Record<ConfigSyncCategory, ConfigSyncMode>>;
+  /** 仅拉取的插件 ID 列表（替代 mobileReadOnlyPlugins） */
+  pullOnlyPlugins?: string[];
+  /** 完全跳过的插件 ID 列表 */
+  skipPlugins?: string[];
+}
+
+/** 所有配置类别常量列表 */
+export const ALL_CONFIG_SYNC_CATEGORIES: ConfigSyncCategory[] = [
+  "appearance",
+  "app",
+  "bookmarks",
+  "communityPlugins",
+  "corePlugins",
+  "hotkeys",
+  "graph",
+  "snippets",
+  "themes",
+  "pluginsData",
+];
 
 export type DecisionTypeForMixedEntity =
   | "only_history"

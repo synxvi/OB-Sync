@@ -4,6 +4,7 @@ import PQueue from "p-queue";
 import XRegExp from "xregexp";
 import type {
   ConflictActionType,
+  DeviceConfigProfile,
   EmptyFolderCleanType,
   Entity,
   MixedEntity,
@@ -12,6 +13,7 @@ import type {
   SyncDirectionType,
   SyncTriggerSourceType,
 } from "../../src/baseTypes";
+import { getConfigSyncModeForFile } from "../../src/configCategories";
 import { copyFile, copyFileOrFolder, copyFolder } from "../../src/copyLogic";
 import type { FakeFs } from "../../src/fsAll";
 import type { FakeFsEncrypt } from "../../src/fsEncrypt";
@@ -138,7 +140,9 @@ export const checkIsSkipItemOrNotByName = (
   syncUnderscoreItems: boolean,
   configDir: string,
   ignorePaths: string[],
-  onlyAllowPaths: string[]
+  onlyAllowPaths: string[],
+  enableDeviceConfigSync?: boolean,
+  deviceConfigProfile?: DeviceConfigProfile
 ): IsSkipResult => {
   if (key === undefined) {
     throw Error(`checkIsSkipItemOrNotByName meets undefinded key!`);
@@ -191,7 +195,14 @@ export const checkIsSkipItemOrNotByName = (
   // not sync config, sync bookmarks: sync bookmars, not other config
   // not sync config, not sync bookmarks: not sync config
   if (finalIsIgnored === undefined) {
-    if (syncConfigDir) {
+    // 设备级配置同步模式：根据当前设备的配置档案决定同步行为
+    if (enableDeviceConfigSync && deviceConfigProfile) {
+      if (isInsideObsFolder(key, configDir)) {
+        const mode = getConfigSyncModeForFile(key, configDir, deviceConfigProfile);
+        finalIsIgnored = mode === "skip";
+      }
+      // 非配置文件：继续后续检查
+    } else if (syncConfigDir) {
       if (isInsideObsFolder(key, configDir)) {
         // force sync everything
         finalIsIgnored = false;
@@ -354,7 +365,10 @@ const ensembleMixedEnties = async (
   fsEncrypt: FakeFsEncrypt,
   serviceType: SUPPORTED_SERVICES_TYPE,
 
-  profiler: Profiler | undefined
+  profiler: Profiler | undefined,
+
+  enableDeviceConfigSync?: boolean,
+  deviceConfigProfile?: DeviceConfigProfile
 ): Promise<SyncPlanType> => {
   profiler?.addIndent();
   profiler?.insert("ensembleMixedEnties: enter");
@@ -382,7 +396,9 @@ const ensembleMixedEnties = async (
       syncUnderscoreItems,
       configDir,
       ignorePaths,
-      onlyAllowPaths
+      onlyAllowPaths,
+      enableDeviceConfigSync,
+      deviceConfigProfile
     );
     skipOrNotResults[key] = skipOrNot;
     if (skipOrNot.finalIsIgnored && !key.startsWith(configDir)) {
@@ -432,7 +448,9 @@ const ensembleMixedEnties = async (
           syncUnderscoreItems,
           configDir,
           ignorePaths,
-          onlyAllowPaths
+          onlyAllowPaths,
+          enableDeviceConfigSync,
+          deviceConfigProfile
         );
         skipOrNotResults[key] = skipOrNot;
       }
@@ -469,7 +487,9 @@ const ensembleMixedEnties = async (
         syncUnderscoreItems,
         configDir,
         ignorePaths,
-        onlyAllowPaths
+        onlyAllowPaths,
+        enableDeviceConfigSync,
+        deviceConfigProfile
       );
       skipOrNotResults[key] = skipOrNot;
     }
@@ -532,7 +552,9 @@ const getSyncPlanInplace = async (
   triggerSource: SyncTriggerSourceType,
   configDir: string,
   isMobile: boolean,
-  mobileReadOnlyPlugins: string[]
+  mobileReadOnlyPlugins: string[],
+  enableDeviceConfigSync?: boolean,
+  deviceConfigProfile?: DeviceConfigProfile
 ) => {
   profiler?.addIndent();
   profiler?.insert("getSyncPlanInplace: enter");
@@ -1228,6 +1250,83 @@ const getSyncPlanInplace = async (
         console.info(
           `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_created_then_do_nothing`
         );
+      }
+    }
+  }
+
+  // 设备级配置同步：根据当前设备的配置档案覆盖同步决策
+  if (enableDeviceConfigSync && deviceConfigProfile) {
+    for (let mrIdx = 0; mrIdx < sortedKeys.length; mrIdx++) {
+      const mrKey = sortedKeys[mrIdx];
+      if (mrKey === "/$@meta" || mrKey.endsWith("/") || !mrKey.startsWith(`${configDir}/`)) continue;
+
+      const mrEntry = mixedEntityMappings[mrKey];
+      if (!mrEntry || !mrEntry.change) continue;
+
+      const mode = getConfigSyncModeForFile(mrKey, configDir, deviceConfigProfile);
+
+      if (mode === "skip") {
+        // 跳过的文件应该已在过滤阶段排除，此处作为安全保障
+        mrEntry.change = false;
+        mrEntry.decision = "folder_to_skip";
+        continue;
+      }
+
+      if (mode === "pull_only") {
+        // 仅拉取：将所有推送类决策转为拉取或跳过
+        const orig = mrEntry.decision;
+        if (
+          orig === "local_is_modified_then_push" ||
+          orig === "conflict_modified_then_keep_local"
+        ) {
+          mrEntry.decision = "conflict_modified_then_keep_remote";
+          mrEntry.decisionBranch = 9003;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 pull_only: conflict_modified_then_keep_remote`
+          );
+        } else if (orig === "local_is_created_then_push") {
+          mrEntry.decision = "conflict_created_then_do_nothing";
+          mrEntry.decisionBranch = 9003;
+          mrEntry.change = false;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 pull_only: conflict_created_then_do_nothing`
+          );
+        } else if (orig === "conflict_created_then_keep_local") {
+          mrEntry.decision = "conflict_created_then_keep_remote";
+          mrEntry.decisionBranch = 9003;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 pull_only: conflict_created_then_keep_remote`
+          );
+        } else if (orig === "local_is_deleted_thus_also_delete_remote") {
+          mrEntry.decision = "conflict_created_then_do_nothing";
+          mrEntry.decisionBranch = 9003;
+          mrEntry.change = false;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 pull_only: conflict_created_then_do_nothing`
+          );
+        }
+      }
+
+      if (mode === "push_only") {
+        // 仅推送：将所有拉取类决策转为推送或跳过
+        const orig = mrEntry.decision;
+        if (
+          orig === "remote_is_modified_then_pull" ||
+          orig === "conflict_modified_then_keep_remote"
+        ) {
+          mrEntry.decision = "conflict_modified_then_keep_local";
+          mrEntry.decisionBranch = 9004;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 push_only: conflict_modified_then_keep_local`
+          );
+        } else if (orig === "remote_is_created_then_pull") {
+          mrEntry.decision = "conflict_created_then_do_nothing";
+          mrEntry.decisionBranch = 9004;
+          mrEntry.change = false;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 push_only: conflict_created_then_do_nothing`
+          );
+        }
       }
     }
   }
@@ -1972,7 +2071,9 @@ export async function syncer(
     everythingOk: boolean
   ) => any,
   callbackSyncProcess?: any,
-  isMobile?: boolean
+  isMobile?: boolean,
+  enableDeviceConfigSync?: boolean,
+  deviceConfigProfile?: DeviceConfigProfile
 ) {
   console.info(`starting sync.`);
   markIsSyncingFunc(true);
@@ -2056,7 +2157,9 @@ export async function syncer(
       settings.onlyAllowPaths ?? [],
       fsEncrypt,
       settings.serviceType,
-      profiler
+      profiler,
+      enableDeviceConfigSync,
+      deviceConfigProfile
     );
     profiler?.insert(`finish step${step} (build partial mixedEntity)`);
 
@@ -2070,7 +2173,9 @@ export async function syncer(
       triggerSource,
       configDir,
       isMobile ?? false,
-      settings.mobileReadOnlyPlugins ?? []
+      settings.mobileReadOnlyPlugins ?? [],
+      enableDeviceConfigSync,
+      deviceConfigProfile
     );
     console.debug(`mixedEntityMappings:`);
     console.debug(mixedEntityMappings); // for debugging

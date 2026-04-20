@@ -46,6 +46,7 @@ import {
   clearExpiredSyncPlanRecords,
   getLastFailedSyncTimeByVault,
   getLastSuccessSyncTimeByVault,
+  getOrCreateDeviceId,
   prepareDBs,
   upsertLastFailedSyncTimeByVault,
   upsertLastSuccessSyncTimeByVault,
@@ -54,7 +55,7 @@ import {
 import { changeMobileStatusBar } from "./misc";
 import { DEFAULT_PROFILER_CONFIG, Profiler } from "./profiler";
 import { ObsSyncSettingTab } from "./settings";
-import { SyncAlgoV3Modal } from "./syncAlgoV3Notice";
+
 
 const DEFAULT_SETTINGS: ObsSyncPluginSettings = {
   webdav: DEFAULT_WEBDAV_CONFIG,
@@ -160,6 +161,7 @@ export default class ObsSyncPlugin extends Plugin {
   syncOnSaveIntervalID?: number;
   i18n!: I18n;
   vaultRandomID!: string;
+  deviceId!: string;
   debugServerTemp?: string;
   syncEvent?: Events;
   appContainerObserver?: MutationObserver;
@@ -438,7 +440,9 @@ export default class ObsSyncPlugin extends Plugin {
       ribboonFunc,
       statusBarFunc,
       callbackSyncProcess,
-      Platform.isMobile
+      Platform.isMobile,
+      this.settings.enableDeviceConfigSync ?? false,
+      this.settings.deviceProfiles?.[this.deviceId]
     );
 
     fsEncrypt.closeResources();
@@ -783,14 +787,9 @@ export default class ObsSyncPlugin extends Plugin {
 
     this.enableCheckingFileStat();
 
-    if (!this.settings.agreeToUseSyncV3) {
-      const syncAlgoV3Modal = new SyncAlgoV3Modal(this.app, this);
-      syncAlgoV3Modal.open();
-    } else {
-      this.enableAutoSyncIfSet();
-      this.enableInitSyncIfSet();
-      this.toggleSyncOnSaveIfSet();
-    }
+    this.enableAutoSyncIfSet();
+    this.enableInitSyncIfSet();
+    this.toggleSyncOnSaveIfSet();
 
     // compare versions and read new versions
     const { oldVersion } = await upsertPluginVersionByVault(
@@ -940,6 +939,22 @@ export default class ObsSyncPlugin extends Plugin {
   }
 
   async saveSettings() {
+    // 设备级配置：合并其他设备的 profile，避免覆盖
+    if (this.settings.enableDeviceConfigSync && this.settings.deviceProfiles && this.deviceId) {
+      try {
+        const diskData = messyConfigToNormal(await this.loadData());
+        if (diskData?.deviceProfiles) {
+          for (const [id, profile] of Object.entries(diskData.deviceProfiles)) {
+            if (id !== this.deviceId && !(id in this.settings.deviceProfiles)) {
+              this.settings.deviceProfiles[id] = profile as any;
+            }
+          }
+        }
+      } catch {
+        // 读取失败时忽略，继续保存
+      }
+    }
+
     if (this.settings.obfuscateSettingFile) {
       await this.saveData(normalConfigToMessy(this.settings));
     } else {
@@ -1047,6 +1062,9 @@ export default class ObsSyncPlugin extends Plugin {
     );
     this.db = db;
     this.vaultRandomID = vaultRandomID;
+
+    // 初始化设备 ID（持久化在 IndexedDB，不同步到远程）
+    this.deviceId = await getOrCreateDeviceId(db);
   }
 
   enableAutoSyncIfSet() {
@@ -1212,10 +1230,6 @@ export default class ObsSyncPlugin extends Plugin {
     });
   }
 
-  async saveAgreeToUseNewSyncAlgorithm() {
-    this.settings.agreeToUseSyncV3 = true;
-    await this.saveSettings();
-  }
 
   setCurrSyncMsg(
     t: (x: TransItemType, vars?: any) => string,
