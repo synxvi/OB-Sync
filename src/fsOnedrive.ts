@@ -1090,7 +1090,7 @@ export class FakeFsOnedrive extends FakeFs {
     await this._deleteJson(remoteFileName);
   }
 
-  async checkConnect(callbackFunc?: any): Promise<boolean> {
+  async checkConnect(callbackFunc?: (err: unknown) => void): Promise<boolean> {
     try {
       const k = await this.getUserDisplayName();
       if (k === "<unknown display name>") {

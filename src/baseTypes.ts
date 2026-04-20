@@ -274,7 +274,7 @@ export interface MixedEntity {
 
   change?: boolean;
 
-  sideNotes?: any;
+  sideNotes?: Record<string, unknown>;
 }
 
 /**

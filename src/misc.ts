@@ -7,7 +7,10 @@ import XRegExp from "xregexp";
 
 declare global {
   interface Window {
-    moment: (...data: any) => any;
+    moment: (...data: unknown[]) => {
+      format: (fmt?: string) => string;
+      toISOString: (keepOffset?: boolean) => string;
+    };
   }
 }
 
@@ -311,7 +314,7 @@ export const getSplitRanges = (bytesTotal: number, bytesEachPart: number) => {
  * @param obj anything
  * @returns string of the name of the object
  */
-export const getTypeName = (obj: any) => {
+export const getTypeName = (obj: unknown) => {
   return Object.prototype.toString.call(obj).slice(8, -1);
 };
 
@@ -360,7 +363,7 @@ export const unixTimeToStr = (x: number | undefined | null, hasMs = false) => {
  */
 const getCircularReplacer = () => {
   const seen = new WeakSet();
-  return (key: any, value: any) => {
+  return (key: string, value: unknown) => {
     if (typeof value === "object" && value !== null) {
       if (seen.has(value)) {
         return;
@@ -376,7 +379,7 @@ const getCircularReplacer = () => {
  * @param x
  * @returns
  */
-export const toText = (x: any) => {
+export const toText = (x: unknown) => {
   if (x === undefined || x === null) {
     return `${x}`;
   }
@@ -393,14 +396,18 @@ export const toText = (x: any) => {
     return `${x}`;
   }
 
-  if (
-    x instanceof Error ||
-    (x?.stack &&
-      x?.message &&
-      typeof x.stack === "string" &&
-      typeof x.message === "string")
-  ) {
+  if (x instanceof Error) {
     return `ERROR! MESSAGE: ${x.message}, STACK: ${x.stack}`;
+  }
+  if (
+    typeof x === "object" &&
+    x !== null &&
+    "stack" in x &&
+    "message" in x &&
+    typeof (x as Record<string, unknown>).stack === "string" &&
+    typeof (x as Record<string, unknown>).message === "string"
+  ) {
+    return `ERROR! MESSAGE: ${(x as Record<string, unknown>).message}, STACK: ${(x as Record<string, unknown>).stack}`;
   }
 
   try {
@@ -668,8 +675,8 @@ export const fixEntityListCasesInplace = (entities: { keyRaw: string }[]) => {
  * @param object
  * @returns bytes
  */
-export const roughSizeOfObject = (object: any) => {
-  const objectList: any[] = [];
+export const roughSizeOfObject = (object: unknown) => {
+  const objectList: unknown[] = [];
   const stack = [object];
   let bytes = 0;
 
@@ -687,11 +694,11 @@ export const roughSizeOfObject = (object: any) => {
         bytes += 8;
         break;
       case "object":
-        if (!objectList.includes(value)) {
+        if (value !== null && !objectList.includes(value)) {
           objectList.push(value);
           for (const prop in value) {
-            if (value.hasOwnProperty(prop)) {
-              stack.push(value[prop]);
+            if (Object.prototype.hasOwnProperty.call(value, prop)) {
+              stack.push((value as Record<string, unknown>)[prop]);
             }
           }
         }

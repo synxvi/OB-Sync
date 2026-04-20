@@ -10,12 +10,10 @@ OB Sync is an Obsidian plugin that synchronizes vaults with remote cloud storage
 
 ```bash
 # Development (watch mode)
-npm run dev          # Webpack, development + watch
-npm run dev2         # Esbuild, development + watch
+npm run dev          # Esbuild, development + watch
 
 # Production build
-npm run build        # Webpack production
-npm run build2       # Esbuild production (runs tsc -noEmit first)
+npm run build        # Esbuild production (runs tsc -noEmit first)
 
 # Code quality
 npm run format       # Biome check --write (formatter + linter)
@@ -29,9 +27,9 @@ npm run clean        # Remove main.js
 
 ## Architecture
 
-### Dual Build Systems
+### Build System
 
-Both Webpack (`webpack.config.js`) and Esbuild (`esbuild.config.mjs`) are supported. Both output a single `main.js` bundle. The plugin runs inside Obsidian's browser-like environment — Node.js modules are polyfilled via the `browser` field in `package.json` (path → path-browserify, crypto → crypto-browserify, etc.).
+Esbuild (`esbuild.config.mjs`) outputs a single `main.js` bundle. The plugin runs inside Obsidian's browser-like environment — Node.js modules are polyfilled via the `browser` field in `package.json` (path → path-browserify, crypto → crypto-browserify, etc.).
 
 ### Core Abstraction: `FakeFs`
 

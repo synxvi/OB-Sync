@@ -17,28 +17,21 @@ interface MessyConfigType {
 export const messyConfigToNormal = (
   x: MessyConfigType | ObsSyncPluginSettings | null | undefined
 ): ObsSyncPluginSettings | null | undefined => {
-  // console.debug("loading, original config on disk:");
-  // console.debug(x);
   if (x === null || x === undefined) {
     console.debug("the messy config is null or undefined, skip");
     return x as any;
   }
   if ("readme" in x && "d" in x) {
-    // we should decode
     const y = JSON.parse(
       (
         base64url.parse(reverseString(x["d"]), {
-          out: Buffer.allocUnsafe as any,
+          out: Buffer.alloc as any,
           loose: true,
         }) as Buffer
       ).toString("utf-8")
     );
-    // console.debug("loading, parsed config is:");
-    // console.debug(y);
     return y;
   } else {
-    // return as is
-    // console.debug("loading, parsed config is the same");
     return x;
   }
 };
@@ -61,7 +54,5 @@ export const normalConfigToMessy = (
       })
     ),
   };
-  // console.debug("encoding, encoded config is:");
-  // console.debug(y);
   return y;
 };

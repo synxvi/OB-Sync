@@ -70,7 +70,7 @@ export const deserializeMetadataOnRemote = (x: string | ArrayBuffer) => {
     y1 = new TextDecoder().decode(x);
   }
 
-  let y2: any;
+  let y2: { readme?: string; d?: string };
   try {
     y2 = JSON.parse(y1);
   } catch (e) {
@@ -79,7 +79,7 @@ export const deserializeMetadataOnRemote = (x: string | ArrayBuffer) => {
     );
   }
 
-  if (!("readme" in y2 && "d" in y2)) {
+  if (!("readme" in y2 && "d" in y2) || y2.d === undefined) {
     throw new Error(
       'invalid remote meta data file (no "readme" or "d" fields)!'
     );
@@ -89,7 +89,7 @@ export const deserializeMetadataOnRemote = (x: string | ArrayBuffer) => {
   try {
     y3 = (
       base64url.parse(reverseString(y2["d"]), {
-        out: Buffer.allocUnsafe as any,
+        out: Buffer.alloc as any,
         loose: true,
       }) as Buffer
     ).toString("utf-8");

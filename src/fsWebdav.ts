@@ -924,7 +924,7 @@ export class FakeFsWebdav extends FakeFs {
     }
   }
 
-  async checkConnect(callbackFunc?: any): Promise<boolean> {
+  async checkConnect(callbackFunc?: (err: unknown) => void): Promise<boolean> {
     if (
       !(
         this.webdavConfig.address.startsWith("http://") ||
