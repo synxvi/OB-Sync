@@ -1,4 +1,8 @@
-import type { ConfigSyncCategory, ConfigSyncMode, DeviceConfigProfile } from "./baseTypes";
+import type {
+  ConfigSyncCategory,
+  ConfigSyncMode,
+  DeviceConfigProfile,
+} from "./baseTypes";
 import { ALL_CONFIG_SYNC_CATEGORIES } from "./baseTypes";
 
 /** 类别到文件路径的映射规则 */

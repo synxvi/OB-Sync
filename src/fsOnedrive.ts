@@ -262,8 +262,7 @@ const fromDriveItemToEntity = (x: DriveItem, remoteBaseDir: string): Entity => {
 
   // another report, why???
   // /drive/root:/something/app/ob-sync/${remoteBaseDir}
-  const THIRD_COMMON_PREFIX_REGEX =
-    /^\/drive\/root:\/[^\/]+\/app\/ob-sync\//g;
+  const THIRD_COMMON_PREFIX_REGEX = /^\/drive\/root:\/[^\/]+\/app\/ob-sync\//g;
 
   // another possibile prefix
   const FOURTH_COMMON_PREFIX_RAW = `/drive/items/`;

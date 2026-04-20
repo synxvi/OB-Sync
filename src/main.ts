@@ -16,10 +16,7 @@ import {
   setIcon,
 } from "obsidian";
 import { syncer } from "../pro/src/sync";
-import type {
-  ObsSyncPluginSettings,
-  SyncTriggerSourceType,
-} from "./baseTypes";
+import type { ObsSyncPluginSettings, SyncTriggerSourceType } from "./baseTypes";
 import {
   COMMAND_CALLBACK,
   COMMAND_CALLBACK_ONEDRIVE,
@@ -56,7 +53,6 @@ import { changeMobileStatusBar } from "./misc";
 import { DEFAULT_PROFILER_CONFIG, Profiler } from "./profiler";
 import { ObsSyncSettingTab } from "./settings";
 
-
 const DEFAULT_SETTINGS: ObsSyncPluginSettings = {
   webdav: DEFAULT_WEBDAV_CONFIG,
   onedrive: DEFAULT_ONEDRIVE_CONFIG,
@@ -68,8 +64,6 @@ const DEFAULT_SETTINGS: ObsSyncPluginSettings = {
   syncOnSaveAfterMilliseconds: -1,
   agreeToUploadExtraMetadata: true,
   concurrency: 5,
-  syncConfigDir: false,
-  syncBookmarks: false,
   syncUnderscoreItems: false,
   lang: "auto",
   logToDB: false,
@@ -87,7 +81,6 @@ const DEFAULT_SETTINGS: ObsSyncPluginSettings = {
   enableMobileStatusBar: false,
   encryptionMethod: "unknown",
   profiler: DEFAULT_PROFILER_CONFIG,
-  mobileReadOnlyPlugins: [],
 };
 
 interface OAuth2Info {
@@ -448,27 +441,6 @@ export default class ObsSyncPlugin extends Plugin {
     fsEncrypt.closeResources();
     (profiler as Profiler | undefined)?.clear();
 
-    // 手机端同步成功后，重载标记的只读插件以应用最新配置
-    if (Platform.isMobile && syncOk) {
-      const roPlugins = this.settings.mobileReadOnlyPlugins ?? [];
-      if (roPlugins.length > 0) {
-        console.info(`[OB Sync] 同步完成，开始重载 ${roPlugins.length} 个只读插件...`);
-        for (const pluginId of roPlugins) {
-          try {
-            // @ts-ignore Obsidian 内部 API
-            const pluginEnabled = this.app.plugins?.enabledPlugins?.has(pluginId);
-            if (pluginEnabled) {
-              await this.app.plugins.disablePlugin(pluginId);
-              await this.app.plugins.enablePlugin(pluginId);
-              console.info(`[OB Sync] 已重载插件: ${pluginId}`);
-            }
-          } catch (e) {
-            console.warn(`[OB Sync] 重载插件 ${pluginId} 失败:`, e);
-          }
-        }
-      }
-    }
-
     this.syncEvent?.trigger("SYNC_DONE");
   }
 
@@ -570,7 +542,6 @@ export default class ObsSyncPlugin extends Plugin {
         );
       }
     );
-
 
     this.registerObsidianProtocolHandler(
       COMMAND_CALLBACK_ONEDRIVE,
@@ -940,7 +911,11 @@ export default class ObsSyncPlugin extends Plugin {
 
   async saveSettings() {
     // 设备级配置：合并其他设备的 profile，避免覆盖
-    if (this.settings.enableDeviceConfigSync && this.settings.deviceProfiles && this.deviceId) {
+    if (
+      this.settings.enableDeviceConfigSync &&
+      this.settings.deviceProfiles &&
+      this.deviceId
+    ) {
       try {
         const diskData = messyConfigToNormal(await this.loadData());
         if (diskData?.deviceProfiles) {
@@ -1229,7 +1204,6 @@ export default class ObsSyncPlugin extends Plugin {
       );
     });
   }
-
 
   setCurrSyncMsg(
     t: (x: TransItemType, vars?: any) => string,

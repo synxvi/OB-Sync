@@ -565,9 +565,7 @@ export const upsertPluginVersionByVault = async (
 };
 
 /** 获取或创建设备 ID，持久化在 IndexedDB 中（不同步到远程） */
-export const getOrCreateDeviceId = async (
-  db: InternalDBs
-): Promise<string> => {
+export const getOrCreateDeviceId = async (db: InternalDBs): Promise<string> => {
   const existing = (await db.simpleKVForMiscTbl.getItem("deviceId")) as
     | string
     | null;

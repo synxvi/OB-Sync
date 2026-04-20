@@ -90,8 +90,6 @@ export interface ObsSyncPluginSettings {
   syncOnSaveAfterMilliseconds?: number;
 
   concurrency?: number;
-  syncConfigDir?: boolean;
-  syncBookmarks?: boolean;
   syncUnderscoreItems?: boolean;
   lang?: LangTypeAndAuto;
   agreeToUseSyncV3?: boolean;
@@ -132,9 +130,6 @@ export interface ObsSyncPluginSettings {
    * @deprecated
    */
   howToCleanEmptyFolder?: EmptyFolderCleanType;
-
-  /** 手机端只拉取不推送的插件 ID 列表 */
-  mobileReadOnlyPlugins?: string[];
 
   /** 启用设备级配置同步模式 */
   enableDeviceConfigSync?: boolean;
@@ -187,7 +182,7 @@ export interface DeviceConfigProfile {
   registeredAt: number;
   /** 每个类别的同步模式，未设置的类别默认为 "sync" */
   categorySyncModes: Partial<Record<ConfigSyncCategory, ConfigSyncMode>>;
-  /** 仅拉取的插件 ID 列表（替代 mobileReadOnlyPlugins） */
+  /** 仅拉取的插件 ID 列表 */
   pullOnlyPlugins?: string[];
   /** 完全跳过的插件 ID 列表 */
   skipPlugins?: string[];

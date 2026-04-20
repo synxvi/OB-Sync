@@ -3,8 +3,8 @@ import QRCode from "qrcode";
 
 import {
   COMMAND_URI,
-  type QRExportType,
   type ObsSyncPluginSettings,
+  type QRExportType,
   type UriParams,
 } from "./baseTypes";
 import { getShrinkedSettings as getShrinkedSettingsOnedrive } from "./fsOnedrive";

@@ -198,7 +198,11 @@ export const checkIsSkipItemOrNotByName = (
     // 设备级配置同步模式：根据当前设备的配置档案决定同步行为
     if (enableDeviceConfigSync && deviceConfigProfile) {
       if (isInsideObsFolder(key, configDir)) {
-        const mode = getConfigSyncModeForFile(key, configDir, deviceConfigProfile);
+        const mode = getConfigSyncModeForFile(
+          key,
+          configDir,
+          deviceConfigProfile
+        );
         finalIsIgnored = mode === "skip";
       }
       // 非配置文件：继续后续检查
@@ -552,7 +556,6 @@ const getSyncPlanInplace = async (
   triggerSource: SyncTriggerSourceType,
   configDir: string,
   isMobile: boolean,
-  mobileReadOnlyPlugins: string[],
   enableDeviceConfigSync?: boolean,
   deviceConfigProfile?: DeviceConfigProfile
 ) => {
@@ -1201,69 +1204,25 @@ const getSyncPlanInplace = async (
 
   profiler?.insert("getSyncPlanInplace: finish looping");
 
-  // 移动端只读插件：禁止将标记插件的数据推送到远程
-  // 在手机端，如果文件属于用户标记的"只读插件"，将所有 push 类决策转换为 pull/skip
-  if (isMobile && mobileReadOnlyPlugins.length > 0) {
-    for (let mrIdx = 0; mrIdx < sortedKeys.length; mrIdx++) {
-      const mrKey = sortedKeys[mrIdx];
-      if (mrKey === "/$@meta" || mrKey.endsWith("/") || !mrKey.startsWith(`${configDir}/plugins/`)) continue;
-
-      // 从 key 提取 pluginId，格式：.obsidian/plugins/{pluginId}/xxx
-      const pluginsPrefix = `${configDir}/plugins/`;
-      const afterPlugins = mrKey.slice(pluginsPrefix.length);
-      const slashIdx = afterPlugins.indexOf("/");
-      if (slashIdx === -1) continue;
-      const pluginId = afterPlugins.slice(0, slashIdx);
-
-      if (!mobileReadOnlyPlugins.includes(pluginId)) continue;
-
-      const mrEntry = mixedEntityMappings[mrKey];
-      if (!mrEntry || !mrEntry.change) continue;
-
-      const origDecision = mrEntry.decision;
-      if (
-        origDecision === "local_is_modified_then_push" ||
-        origDecision === "conflict_modified_then_keep_local"
-      ) {
-        mrEntry.decision = "conflict_modified_then_keep_remote";
-        mrEntry.decisionBranch = 9002;
-        console.info(
-          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_modified_then_keep_remote`
-        );
-      } else if (origDecision === "local_is_created_then_push") {
-        mrEntry.decision = "conflict_created_then_do_nothing";
-        mrEntry.decisionBranch = 9002;
-        mrEntry.change = false;
-        console.info(
-          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_created_then_do_nothing`
-        );
-      } else if (origDecision === "conflict_created_then_keep_local") {
-        mrEntry.decision = "conflict_created_then_keep_remote";
-        mrEntry.decisionBranch = 9002;
-        console.info(
-          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_created_then_keep_remote`
-        );
-      } else if (origDecision === "local_is_deleted_thus_also_delete_remote") {
-        mrEntry.decision = "conflict_created_then_do_nothing";
-        mrEntry.decisionBranch = 9002;
-        mrEntry.change = false;
-        console.info(
-          `[OB Sync 移动端只读] ${mrKey} → ${origDecision} 改为 conflict_created_then_do_nothing`
-        );
-      }
-    }
-  }
-
   // 设备级配置同步：根据当前设备的配置档案覆盖同步决策
   if (enableDeviceConfigSync && deviceConfigProfile) {
     for (let mrIdx = 0; mrIdx < sortedKeys.length; mrIdx++) {
       const mrKey = sortedKeys[mrIdx];
-      if (mrKey === "/$@meta" || mrKey.endsWith("/") || !mrKey.startsWith(`${configDir}/`)) continue;
+      if (
+        mrKey === "/$@meta" ||
+        mrKey.endsWith("/") ||
+        !mrKey.startsWith(`${configDir}/`)
+      )
+        continue;
 
       const mrEntry = mixedEntityMappings[mrKey];
       if (!mrEntry || !mrEntry.change) continue;
 
-      const mode = getConfigSyncModeForFile(mrKey, configDir, deviceConfigProfile);
+      const mode = getConfigSyncModeForFile(
+        mrKey,
+        configDir,
+        deviceConfigProfile
+      );
 
       if (mode === "skip") {
         // 跳过的文件应该已在过滤阶段排除，此处作为安全保障
@@ -2173,7 +2132,6 @@ export async function syncer(
       triggerSource,
       configDir,
       isMobile ?? false,
-      settings.mobileReadOnlyPlugins ?? [],
       enableDeviceConfigSync,
       deviceConfigProfile
     );
