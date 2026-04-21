@@ -969,6 +969,196 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             });
         });
 
+      // ===== 设备级配置同步 =====
+      new Setting(settingsDiv)
+        .setName(t("device_config_mode_title"))
+        .setDesc(t("device_config_mode_desc"))
+        .addDropdown((dropdown) => {
+          dropdown.addOption("legacy", t("device_config_mode_legacy"));
+          dropdown.addOption("device", t("device_config_mode_device"));
+          dropdown
+            .setValue(
+              `${this.plugin.settings.enableDeviceConfigSync ? "device" : "legacy"}`
+            )
+            .onChange(async (val) => {
+              const enableDevice = val === "device";
+              if (
+                enableDevice &&
+                !this.plugin.settings.enableDeviceConfigSync
+              ) {
+                const deviceId = this.plugin.deviceId;
+                if (!this.plugin.settings.deviceProfiles) {
+                  this.plugin.settings.deviceProfiles = {};
+                }
+                if (!this.plugin.settings.deviceProfiles[deviceId]) {
+                  this.plugin.settings.deviceProfiles[deviceId] = {
+                    deviceId,
+                    deviceName: Platform.isMobile
+                      ? t("device_config_default_name_mobile")
+                      : t("device_config_default_name_desktop"),
+                    platform: Platform.isMobile ? "mobile" : "desktop",
+                    registeredAt: Date.now(),
+                    categorySyncModes: {},
+                    pullOnlyPlugins: [],
+                    skipPlugins: [],
+                  };
+                }
+              }
+              this.plugin.settings.enableDeviceConfigSync = enableDevice;
+              await this.plugin.saveSettings();
+              this.display();
+            });
+        });
+
+      if (this.plugin.settings.enableDeviceConfigSync) {
+        const deviceId = this.plugin.deviceId;
+        const deviceProfile = this.plugin.settings.deviceProfiles?.[
+          deviceId
+        ] ?? {
+          deviceId,
+          deviceName: Platform.isMobile
+            ? t("device_config_default_name_mobile")
+            : t("device_config_default_name_desktop"),
+          platform: Platform.isMobile ? "mobile" : "desktop",
+          registeredAt: Date.now(),
+          categorySyncModes: {},
+          pullOnlyPlugins: [],
+          skipPlugins: [],
+        };
+
+        new Setting(settingsDiv)
+          .setName(t("device_config_current_device"))
+          .setDesc(
+            `${t("device_config_platform")}: ${deviceProfile.platform === "mobile" ? t("device_config_platform_mobile") : t("device_config_platform_desktop")} | ID: ${deviceId.slice(0, 8)}...`
+          )
+          .addText((text) => {
+            text
+              .setPlaceholder(t("device_config_name_placeholder"))
+              .setValue(deviceProfile.deviceName)
+              .onChange(async (val) => {
+                if (!this.plugin.settings.deviceProfiles) {
+                  this.plugin.settings.deviceProfiles = {};
+                }
+                const profile =
+                  this.plugin.settings.deviceProfiles[deviceId] ??
+                  deviceProfile;
+                this.plugin.settings.deviceProfiles[deviceId] = {
+                  ...profile,
+                  deviceName: val,
+                };
+                await this.plugin.saveSettings();
+              });
+          });
+
+        for (const category of ALL_CONFIG_SYNC_CATEGORIES) {
+          const currentMode =
+            deviceProfile.categorySyncModes[category] ?? "sync";
+          new Setting(settingsDiv)
+            .setName(t(`device_config_category_${category}`))
+            .addDropdown((dropdown) => {
+              dropdown.addOption("sync", t("device_config_mode_sync"));
+              dropdown.addOption(
+                "pull_only",
+                t("device_config_mode_pull_only")
+              );
+              dropdown.addOption(
+                "push_only",
+                t("device_config_mode_push_only")
+              );
+              dropdown.addOption("skip", t("device_config_mode_skip"));
+              dropdown.setValue(currentMode).onChange(async (val) => {
+                if (!this.plugin.settings.deviceProfiles) {
+                  this.plugin.settings.deviceProfiles = {};
+                }
+                const profile =
+                  this.plugin.settings.deviceProfiles[deviceId] ??
+                  deviceProfile;
+                const newModes = {
+                  ...profile.categorySyncModes,
+                  [category]: val as ConfigSyncMode,
+                };
+                this.plugin.settings.deviceProfiles[deviceId] = {
+                  ...profile,
+                  categorySyncModes: newModes,
+                };
+                await this.plugin.saveSettings();
+              });
+            });
+        }
+
+        const pluginsDataMode =
+          deviceProfile.categorySyncModes.pluginsData ?? "sync";
+        if (pluginsDataMode !== "skip") {
+          try {
+            const communityPluginsStr =
+              await this.plugin.app.vault.adapter.read(
+                ".obsidian/community-plugins.json"
+              );
+            const enabledPluginIds: string[] =
+              JSON.parse(communityPluginsStr);
+            const otherPlugins = enabledPluginIds.filter(
+              (id) => id !== this.plugin.manifest.id
+            );
+
+            if (otherPlugins.length > 0) {
+              new Setting(settingsDiv)
+                .setName(t("device_config_per_plugin"))
+                .setDesc(t("device_config_per_plugin_desc"));
+
+              for (const pluginId of otherPlugins) {
+                const isPullOnly =
+                  deviceProfile.pullOnlyPlugins?.includes(pluginId) ?? false;
+                const isSkip =
+                  deviceProfile.skipPlugins?.includes(pluginId) ?? false;
+                let currentOverride = "default";
+                if (isSkip) currentOverride = "skip";
+                else if (isPullOnly) currentOverride = "pull_only";
+
+                new Setting(settingsDiv)
+                  .setName(pluginId)
+                  .addDropdown((dropdown) => {
+                    dropdown.addOption(
+                      "default",
+                      t("device_config_plugin_default")
+                    );
+                    dropdown.addOption(
+                      "pull_only",
+                      t("device_config_mode_pull_only")
+                    );
+                    dropdown.addOption("skip", t("device_config_mode_skip"));
+                    dropdown
+                      .setValue(currentOverride)
+                      .onChange(async (val) => {
+                        if (!this.plugin.settings.deviceProfiles) {
+                          this.plugin.settings.deviceProfiles = {};
+                        }
+                        const profile =
+                          this.plugin.settings.deviceProfiles[deviceId] ??
+                          deviceProfile;
+                        const pullOnly = (
+                          profile.pullOnlyPlugins ?? []
+                        ).filter((id) => id !== pluginId);
+                        const skip = (profile.skipPlugins ?? []).filter(
+                          (id) => id !== pluginId
+                        );
+                        if (val === "pull_only") pullOnly.push(pluginId);
+                        if (val === "skip") skip.push(pluginId);
+                        this.plugin.settings.deviceProfiles[deviceId] = {
+                          ...profile,
+                          pullOnlyPlugins: pullOnly,
+                          skipPlugins: skip,
+                        };
+                        await this.plugin.saveSettings();
+                      });
+                  });
+              }
+            }
+          } catch {
+            // community-plugins.json 可能不存在
+          }
+        }
+      }
+
       new Setting(settingsDiv)
         .setName(t("setting_syncdirection"))
         .setDesc(stringToFragment(t("setting_syncdirection_desc")))
@@ -1002,205 +1192,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             });
         });
 
-      if (Platform.isMobile) {
-        new Setting(settingsDiv)
-          .setName(t("device_config_mode_title"))
-          .setDesc(t("device_config_mode_desc"))
-          .addDropdown((dropdown) => {
-            dropdown.addOption("legacy", t("device_config_mode_legacy"));
-            dropdown.addOption("device", t("device_config_mode_device"));
-            dropdown
-              .setValue(
-                `${this.plugin.settings.enableDeviceConfigSync ? "device" : "legacy"}`
-              )
-              .onChange(async (val) => {
-                const enableDevice = val === "device";
-                if (
-                  enableDevice &&
-                  !this.plugin.settings.enableDeviceConfigSync
-                ) {
-                  // 首次启用设备级模式，初始化当前设备的配置档案
-                  const deviceId = this.plugin.deviceId;
-                  if (!this.plugin.settings.deviceProfiles) {
-                    this.plugin.settings.deviceProfiles = {};
-                  }
-                  if (!this.plugin.settings.deviceProfiles[deviceId]) {
-                    this.plugin.settings.deviceProfiles[deviceId] = {
-                      deviceId,
-                      deviceName: Platform.isMobile
-                        ? t("device_config_default_name_mobile")
-                        : t("device_config_default_name_desktop"),
-                      platform: Platform.isMobile ? "mobile" : "desktop",
-                      registeredAt: Date.now(),
-                      categorySyncModes: {},
-                      pullOnlyPlugins: [],
-                      skipPlugins: [],
-                    };
-                  }
-                }
-                this.plugin.settings.enableDeviceConfigSync = enableDevice;
-                await this.plugin.saveSettings();
-                // 刷新设置页面
-                this.display();
-              });
-          });
-
-        // 设备级配置 UI（仅当启用设备级模式时显示）
-        if (this.plugin.settings.enableDeviceConfigSync) {
-          const deviceId = this.plugin.deviceId;
-          const deviceProfile = this.plugin.settings.deviceProfiles?.[
-            deviceId
-          ] ?? {
-            deviceId,
-            deviceName: Platform.isMobile
-              ? t("device_config_default_name_mobile")
-              : t("device_config_default_name_desktop"),
-            platform: Platform.isMobile ? "mobile" : "desktop",
-            registeredAt: Date.now(),
-            categorySyncModes: {},
-            pullOnlyPlugins: [],
-            skipPlugins: [],
-          };
-
-          // 当前设备信息
-          new Setting(settingsDiv)
-            .setName(t("device_config_current_device"))
-            .setDesc(
-              `${t("device_config_platform")}: ${deviceProfile.platform === "mobile" ? t("device_config_platform_mobile") : t("device_config_platform_desktop")} | ID: ${deviceId.slice(0, 8)}...`
-            )
-            .addText((text) => {
-              text
-                .setPlaceholder(t("device_config_name_placeholder"))
-                .setValue(deviceProfile.deviceName)
-                .onChange(async (val) => {
-                  if (!this.plugin.settings.deviceProfiles) {
-                    this.plugin.settings.deviceProfiles = {};
-                  }
-                  const profile =
-                    this.plugin.settings.deviceProfiles[deviceId] ??
-                    deviceProfile;
-                  this.plugin.settings.deviceProfiles[deviceId] = {
-                    ...profile,
-                    deviceName: val,
-                  };
-                  await this.plugin.saveSettings();
-                });
-            });
-
-          // 各配置类别的同步模式
-          for (const category of ALL_CONFIG_SYNC_CATEGORIES) {
-            const currentMode =
-              deviceProfile.categorySyncModes[category] ?? "sync";
-            new Setting(settingsDiv)
-              .setName(t(`device_config_category_${category}`))
-              .addDropdown((dropdown) => {
-                dropdown.addOption("sync", t("device_config_mode_sync"));
-                dropdown.addOption(
-                  "pull_only",
-                  t("device_config_mode_pull_only")
-                );
-                dropdown.addOption(
-                  "push_only",
-                  t("device_config_mode_push_only")
-                );
-                dropdown.addOption("skip", t("device_config_mode_skip"));
-                dropdown.setValue(currentMode).onChange(async (val) => {
-                  if (!this.plugin.settings.deviceProfiles) {
-                    this.plugin.settings.deviceProfiles = {};
-                  }
-                  const profile =
-                    this.plugin.settings.deviceProfiles[deviceId] ??
-                    deviceProfile;
-                  const newModes = {
-                    ...profile.categorySyncModes,
-                    [category]: val as ConfigSyncMode,
-                  };
-                  this.plugin.settings.deviceProfiles[deviceId] = {
-                    ...profile,
-                    categorySyncModes: newModes,
-                  };
-                  await this.plugin.saveSettings();
-                });
-              });
-          }
-
-          // 逐插件覆盖（当 pluginsData 非 skip 时显示）
-          const pluginsDataMode =
-            deviceProfile.categorySyncModes.pluginsData ?? "sync";
-          if (pluginsDataMode !== "skip") {
-            // 读取已安装的社区插件列表
-            try {
-              const communityPluginsStr =
-                await this.plugin.app.vault.adapter.read(
-                  ".obsidian/community-plugins.json"
-                );
-              const enabledPluginIds: string[] =
-                JSON.parse(communityPluginsStr);
-              // 过滤掉自身插件
-              const otherPlugins = enabledPluginIds.filter(
-                (id) => id !== this.plugin.manifest.id
-              );
-
-              if (otherPlugins.length > 0) {
-                new Setting(settingsDiv)
-                  .setName(t("device_config_per_plugin"))
-                  .setDesc(t("device_config_per_plugin_desc"));
-
-                for (const pluginId of otherPlugins) {
-                  const isPullOnly =
-                    deviceProfile.pullOnlyPlugins?.includes(pluginId) ?? false;
-                  const isSkip =
-                    deviceProfile.skipPlugins?.includes(pluginId) ?? false;
-                  let currentOverride = "default";
-                  if (isSkip) currentOverride = "skip";
-                  else if (isPullOnly) currentOverride = "pull_only";
-
-                  new Setting(settingsDiv)
-                    .setName(pluginId)
-                    .addDropdown((dropdown) => {
-                      dropdown.addOption(
-                        "default",
-                        t("device_config_plugin_default")
-                      );
-                      dropdown.addOption(
-                        "pull_only",
-                        t("device_config_mode_pull_only")
-                      );
-                      dropdown.addOption("skip", t("device_config_mode_skip"));
-                      dropdown
-                        .setValue(currentOverride)
-                        .onChange(async (val) => {
-                          if (!this.plugin.settings.deviceProfiles) {
-                            this.plugin.settings.deviceProfiles = {};
-                          }
-                          const profile =
-                            this.plugin.settings.deviceProfiles[deviceId] ??
-                            deviceProfile;
-                          const pullOnly = (
-                            profile.pullOnlyPlugins ?? []
-                          ).filter((id) => id !== pluginId);
-                          const skip = (profile.skipPlugins ?? []).filter(
-                            (id) => id !== pluginId
-                          );
-                          if (val === "pull_only") pullOnly.push(pluginId);
-                          if (val === "skip") skip.push(pluginId);
-                          this.plugin.settings.deviceProfiles[deviceId] = {
-                            ...profile,
-                            pullOnlyPlugins: pullOnly,
-                            skipPlugins: skip,
-                          };
-                          await this.plugin.saveSettings();
-                        });
-                    });
-                }
-              }
-            } catch {
-              // community-plugins.json 可能不存在
-            }
-          }
-        }
-
-        let conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
+      let conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
         if (
           (this.plugin.settings.conflictAction ?? "keep_newer") ===
           "smart_conflict"
@@ -1382,7 +1374,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
               new Notice(t("settings_resetstatusbar_notice"));
             });
           });
-      }
 
       new Setting(settingsDiv)
         .setName(t("settings_ignorepaths"))
