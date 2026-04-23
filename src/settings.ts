@@ -951,8 +951,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
 
-    // custom status bar items is not supported on mobile
-    if (!Platform.isMobileApp) {
       new Setting(settingsDiv)
         .setName(t("settings_syncunderscore"))
         .setDesc(t("settings_syncunderscore_desc"))
@@ -1452,7 +1450,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
               await this.plugin.saveSettings();
             });
         });
-    }
 
     //////////////////////////////////////////////////
     // below for import and export functions
