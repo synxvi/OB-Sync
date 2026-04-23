@@ -242,3 +242,16 @@
 .pro-revoke-auth-button-hide {
   display: none;
 }
+
+.config-mgmt-json-viewer {
+  font-family: monospace;
+  width: 100%;
+  min-height: 300px;
+  resize: vertical;
+}
+
+.config-mgmt-device-item {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}

@@ -188,6 +188,23 @@ export interface DeviceConfigProfile {
   skipPlugins?: string[];
 }
 
+/** 配置管理远程存储目录 */
+export const CONFIG_MGMT_DIR = ".obsidian-sync-config-mgmt";
+export const CONFIG_MGMT_DEVICES_DIR = `${CONFIG_MGMT_DIR}/devices`;
+export const CONFIG_MGMT_MANIFEST = `${CONFIG_MGMT_DIR}/manifest.json`;
+export const CONFIG_MGMT_SNAPSHOT_VERSION = 1;
+
+/** 远程配置快照 */
+export interface ConfigManagementSnapshot {
+  version: number;
+  savedAt: number;
+  savedByDeviceId: string;
+  savedByDeviceName: string;
+  pluginVersion: string;
+  pluginSettings: Partial<ObsSyncPluginSettings>;
+  deviceProfiles: Record<string, DeviceConfigProfile>;
+}
+
 /** 所有配置类别常量列表 */
 export const ALL_CONFIG_SYNC_CATEGORIES: ConfigSyncCategory[] = [
   "appearance",
