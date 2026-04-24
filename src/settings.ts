@@ -836,708 +836,16 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
     //////////////////////////////////////////////////
-    // below for sync settings
+    // 同步与配置（合并原"同步设置" + "配置管理"）
     //////////////////////////////////////////////////
 
-    const settingsDiv = containerEl.createEl("div");
-    settingsDiv.createEl("h2", { text: t("settings_sync_title") });
+    const syncConfigDiv = containerEl.createEl("div");
+    syncConfigDiv.createEl("h2", { text: t("settings_sync_config_title") });
 
-    // 快速从远程拉取配置
-    new Setting(settingsDiv)
-      .setName(t("settings_quick_pull"))
-      .setDesc(t("settings_quick_pull_desc"))
-      .addButton((button) => {
-        button.setButtonText(t("settings_quick_pull_button"));
-        button.onClick(async () => {
-          const settings = this.plugin.settings;
-          if (!settings.serviceType) {
-            new Notice(t("settings_quick_pull_no_remote"));
-            return;
-          }
-          try {
-            new Notice(t("settings_quick_pull_pulling"));
-            const client = getClient(
-              settings,
-              this.app.vault.getName(),
-              () => this.plugin.saveSettings()
-            );
-            const snapshots = await pullConfigsFromRemote(client);
-            if (snapshots.length === 0) {
-              new Notice(t("settings_quick_pull_empty"));
-              return;
-            }
-            const latest = snapshots[0];
-            const savedTime = new Date(latest.savedAt).toLocaleString();
-            const confirmed = confirm(
-              t("settings_quick_pull_confirm", {
-                deviceName: latest.savedByDeviceName,
-                time: savedTime,
-              })
-            );
-            if (!confirmed) return;
-            const newSettings = applySnapshotToLocal(
-              latest,
-              this.plugin.settings,
-              this.plugin.deviceId
-            );
-            Object.assign(this.plugin.settings, newSettings);
-            await this.plugin.saveSettings();
-            new Notice(
-              t("settings_quick_pull_success", {
-                deviceName: latest.savedByDeviceName,
-              })
-            );
-            this.display();
-          } catch (err) {
-            new Notice(`${t("settings_quick_pull_fail")}: ${err}`);
-          }
-        });
-      });
+    // ===== 远程设备列表 =====
+    syncConfigDiv.createEl("h3", { text: t("settings_remote_devices") });
 
-    new Setting(settingsDiv)
-      .setName(t("settings_autorun"))
-      .setDesc(t("settings_autorun_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("-1", t("settings_autorun_notset"));
-        dropdown.addOption(`${1000 * 60 * 1}`, t("settings_autorun_1min"));
-        dropdown.addOption(`${1000 * 60 * 5}`, t("settings_autorun_5min"));
-        dropdown.addOption(`${1000 * 60 * 10}`, t("settings_autorun_10min"));
-        dropdown.addOption(`${1000 * 60 * 30}`, t("settings_autorun_30min"));
-
-        dropdown
-          .setValue(`${this.plugin.settings.autoRunEveryMilliseconds}`)
-          .onChange(async (val: string) => {
-            const realVal = Number.parseInt(val);
-            this.plugin.settings.autoRunEveryMilliseconds = realVal;
-            await this.plugin.saveSettings();
-            if (
-              (realVal === undefined || realVal === null || realVal <= 0) &&
-              this.plugin.autoRunIntervalID !== undefined
-            ) {
-              // clear
-              window.clearInterval(this.plugin.autoRunIntervalID);
-              this.plugin.autoRunIntervalID = undefined;
-            } else if (
-              realVal !== undefined &&
-              realVal !== null &&
-              realVal > 0
-            ) {
-              const intervalID = window.setInterval(() => {
-                console.info("auto run from settings.ts");
-                this.plugin.syncRun("auto");
-              }, realVal);
-              this.plugin.autoRunIntervalID = intervalID;
-              this.plugin.registerInterval(intervalID);
-            }
-          });
-      });
-
-    new Setting(settingsDiv)
-      .setName(t("settings_runoncestartup"))
-      .setDesc(t("settings_runoncestartup_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("-1", t("settings_runoncestartup_notset"));
-        dropdown.addOption(
-          `${1000 * 1 * 1}`,
-          t("settings_runoncestartup_1sec")
-        );
-        dropdown.addOption(
-          `${1000 * 10 * 1}`,
-          t("settings_runoncestartup_10sec")
-        );
-        dropdown.addOption(
-          `${1000 * 30 * 1}`,
-          t("settings_runoncestartup_30sec")
-        );
-        dropdown
-          .setValue(`${this.plugin.settings.initRunAfterMilliseconds}`)
-          .onChange(async (val: string) => {
-            const realVal = Number.parseInt(val);
-            this.plugin.settings.initRunAfterMilliseconds = realVal;
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(settingsDiv)
-      .setName(t("settings_synconsave"))
-      .setDesc(t("settings_synconsave_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("-1", t("settings_synconsave_disable"));
-        dropdown.addOption("1000", t("settings_synconsave_enable"));
-        // for backward compatibility, we need to use a number representing seconds
-        let syncOnSaveEnabled = false;
-        if ((this.plugin.settings.syncOnSaveAfterMilliseconds ?? -1) > 0) {
-          syncOnSaveEnabled = true;
-        }
-        dropdown
-          .setValue(`${syncOnSaveEnabled ? "1000" : "-1"}`)
-          .onChange(async (val: string) => {
-            this.plugin.settings.syncOnSaveAfterMilliseconds =
-              Number.parseInt(val);
-            await this.plugin.saveSettings();
-            this.plugin.toggleSyncOnSaveIfSet();
-          });
-      });
-
-    new Setting(settingsDiv)
-      .setName(t("settings_concurrency"))
-      .setDesc(t("settings_concurrency_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("1", "1");
-        dropdown.addOption("2", "2");
-        dropdown.addOption("3", "3");
-        dropdown.addOption("5", "5 (default)");
-        dropdown.addOption("10", "10");
-        dropdown.addOption("15", "15");
-        dropdown.addOption("20", "20");
-
-        dropdown
-          .setValue(`${this.plugin.settings.concurrency}`)
-          .onChange(async (val) => {
-            const realVal = Number.parseInt(val);
-            this.plugin.settings.concurrency = realVal;
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(settingsDiv)
-      .setName(t("settings_skiplargefiles"))
-      .setDesc(t("settings_skiplargefiles_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("-1", t("settings_skiplargefiles_notset"));
-
-        const mbs = [1, 5, 10, 20, 50, 100, 200, 500, 1000];
-        for (const mb of mbs) {
-          dropdown.addOption(`${mb * 1000 * 1000}`, `${mb} MB`);
-        }
-        dropdown
-          .setValue(`${this.plugin.settings.skipSizeLargerThan}`)
-          .onChange(async (val) => {
-            this.plugin.settings.skipSizeLargerThan = Number.parseInt(val);
-            await this.plugin.saveSettings();
-          });
-      });
-
-      new Setting(settingsDiv)
-        .setName(t("settings_syncunderscore"))
-        .setDesc(t("settings_syncunderscore_desc"))
-        .addDropdown((dropdown) => {
-          dropdown.addOption("disable", t("disable"));
-          dropdown.addOption("enable", t("enable"));
-          dropdown
-            .setValue(
-              `${this.plugin.settings.syncUnderscoreItems ? "enable" : "disable"}`
-            )
-            .onChange(async (val) => {
-              this.plugin.settings.syncUnderscoreItems = val === "enable";
-              await this.plugin.saveSettings();
-            });
-        });
-
-      new Setting(settingsDiv)
-        .setName(t("setting_syncdirection"))
-        .setDesc(stringToFragment(t("setting_syncdirection_desc")))
-        .addDropdown((dropdown) => {
-          dropdown.addOption(
-            "bidirectional",
-            t("setting_syncdirection_bidirectional_desc")
-          );
-          dropdown.addOption(
-            "incremental_push_only",
-            t("setting_syncdirection_incremental_push_only_desc")
-          );
-          dropdown.addOption(
-            "incremental_pull_only",
-            t("setting_syncdirection_incremental_pull_only_desc")
-          );
-          dropdown.addOption(
-            "incremental_push_and_delete_only",
-            t("setting_syncdirection_incremental_push_and_delete_only_desc")
-          );
-          dropdown.addOption(
-            "incremental_pull_and_delete_only",
-            t("setting_syncdirection_incremental_pull_and_delete_only_desc")
-          );
-
-          dropdown
-            .setValue(this.plugin.settings.syncDirection ?? "bidirectional")
-            .onChange(async (val) => {
-              this.plugin.settings.syncDirection = val as SyncDirectionType;
-              await this.plugin.saveSettings();
-            });
-        });
-
-      let conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
-        if (
-          (this.plugin.settings.conflictAction ?? "keep_newer") ===
-          "smart_conflict"
-        ) {
-          conflictActionSettingOrigDesc += t(
-            "settings_conflictaction_smart_conflict_desc"
-          );
-        }
-        const conflictActionSetting = new Setting(settingsDiv)
-          .setName(t("settings_conflictaction"))
-          .setDesc(stringToFragment(conflictActionSettingOrigDesc));
-        conflictActionSetting.addDropdown((dropdown) => {
-          dropdown
-            .addOption("keep_newer", t("settings_conflictaction_keep_newer"))
-            .addOption("keep_larger", t("settings_conflictaction_keep_larger"))
-            .addOption(
-              "smart_conflict",
-              t("settings_conflictaction_smart_conflict")
-            )
-            .setValue(this.plugin.settings.conflictAction ?? "keep_newer")
-            .onChange(async (val) => {
-              this.plugin.settings.conflictAction = val as ConflictActionType;
-              await this.plugin.saveSettings();
-
-              conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
-              if (
-                (this.plugin.settings.conflictAction ?? "keep_newer") ===
-                "smart_conflict"
-              ) {
-                conflictActionSettingOrigDesc += t(
-                  "settings_conflictaction_smart_conflict_desc"
-                );
-              }
-              conflictActionSetting.setDesc(
-                stringToFragment(conflictActionSettingOrigDesc)
-              );
-            });
-        });
-
-        generateClearDupFilesSettingsPart(
-          settingsDiv,
-          t,
-          this.app,
-          this.plugin
-        );
-
-        new Setting(settingsDiv)
-          .setName(t("settings_deletetowhere"))
-          .setDesc(t("settings_deletetowhere_desc"))
-          .addDropdown((dropdown) => {
-            dropdown.addOption(
-              "system",
-              t("settings_deletetowhere_system_trash")
-            );
-            dropdown.addOption(
-              "obsidian",
-              t("settings_deletetowhere_obsidian_trash")
-            );
-            dropdown
-              .setValue(this.plugin.settings.deleteToWhere ?? "system")
-              .onChange(async (val) => {
-                this.plugin.settings.deleteToWhere = val as
-                  | "system"
-                  | "obsidian";
-                await this.plugin.saveSettings();
-              });
-          });
-
-        const percentage1 = new Setting(settingsDiv)
-          .setName(t("settings_protectmodifypercentage"))
-          .setDesc(t("settings_protectmodifypercentage_desc"));
-
-        const percentage2 = new Setting(settingsDiv)
-          .setName(t("settings_protectmodifypercentage_customfield"))
-          .setDesc(t("settings_protectmodifypercentage_customfield_desc"));
-        if ((this.plugin.settings.protectModifyPercentage ?? 50) % 10 === 0) {
-          percentage2.settingEl.addClass("settings-percentage-custom-hide");
-        }
-        let percentage2Text: TextComponent | undefined = undefined;
-        percentage2.addText((text) => {
-          text.inputEl.type = "number";
-          percentage2Text = text;
-          text
-            .setPlaceholder("0 ~ 100")
-            .setValue(`${this.plugin.settings.protectModifyPercentage ?? 50}`)
-            .onChange(async (val) => {
-              let k = Number.parseFloat(val.trim());
-              if (Number.isNaN(k)) {
-                // do nothing!
-              } else {
-                if (k < 0) {
-                  k = 0;
-                } else if (k > 100) {
-                  k = 100;
-                }
-                this.plugin.settings.protectModifyPercentage = k;
-                await this.plugin.saveSettings();
-              }
-            });
-        });
-
-        percentage1.addDropdown((dropdown) => {
-          for (const i of Array.from({ length: 11 }, (x, i) => i * 10)) {
-            let desc = `${i}`;
-            if (i === 0) {
-              desc = t("settings_protectmodifypercentage_000_desc");
-            } else if (i === 50) {
-              desc = t("settings_protectmodifypercentage_050_desc");
-            } else if (i === 100) {
-              desc = t("settings_protectmodifypercentage_100_desc");
-            }
-            dropdown.addOption(`${i}`, desc);
-          }
-          dropdown.addOption(
-            "custom",
-            t("settings_protectmodifypercentage_custom_desc")
-          );
-
-          const p = this.plugin.settings.protectModifyPercentage ?? 50;
-          let initVal = "custom";
-          if (p % 10 === 0) {
-            initVal = `${p}`;
-          } else {
-            // show custom
-            percentage2.settingEl.removeClass("settings-percentage-custom");
-          }
-          dropdown.setValue(initVal).onChange(async (val) => {
-            const k = Number.parseInt(val);
-            if (val === "custom" || Number.isNaN(k)) {
-              // do nothing until user changes something in custom field
-              percentage2.settingEl.removeClass(
-                "settings-percentage-custom-hide"
-              );
-            } else {
-              this.plugin.settings.protectModifyPercentage = k;
-              percentage2.settingEl.addClass("settings-percentage-custom-hide");
-              percentage2Text?.setValue(`${k}`);
-              await this.plugin.saveSettings();
-            }
-          });
-        });
-
-        new Setting(settingsDiv)
-          .setName(t("settings_enablestatusbar_info"))
-          .setDesc(t("settings_enablestatusbar_info_desc"))
-          .addToggle((toggle) => {
-            toggle
-              .setValue(this.plugin.settings.enableStatusBarInfo ?? false)
-              .onChange(async (val) => {
-                this.plugin.settings.enableStatusBarInfo = val;
-                await this.plugin.saveSettings();
-                new Notice(t("settings_enablestatusbar_reloadrequired_notice"));
-              });
-          });
-
-        new Setting(settingsDiv)
-          .setName(t("settings_resetstatusbar_time"))
-          .setDesc(t("settings_resetstatusbar_time_desc"))
-          .addButton((button) => {
-            button.setButtonText(t("settings_resetstatusbar_button"));
-            button.onClick(async () => {
-              // reset last sync time
-              await upsertLastSuccessSyncTimeByVault(
-                this.plugin.db,
-                this.plugin.vaultRandomID,
-                -1
-              );
-              await upsertLastFailedSyncTimeByVault(
-                this.plugin.db,
-                this.plugin.vaultRandomID,
-                -1
-              );
-              this.plugin.updateLastSyncMsg(
-                undefined,
-                "not_syncing",
-                null,
-                null
-              );
-              new Notice(t("settings_resetstatusbar_notice"));
-            });
-          });
-
-      new Setting(settingsDiv)
-        .setName(t("settings_ignorepaths"))
-        .setDesc(t("settings_ignorepaths_desc"))
-        .setClass("ignorepaths-settings")
-
-        .addTextArea((textArea) => {
-          textArea
-            .setValue(`${(this.plugin.settings.ignorePaths ?? []).join("\n")}`)
-            .onChange(async (value) => {
-              this.plugin.settings.ignorePaths = value
-                .trim()
-                .split("\n")
-                .filter((x) => x.trim() !== "");
-              await this.plugin.saveSettings();
-            });
-          textArea.inputEl.rows = 10;
-          textArea.inputEl.cols = 30;
-
-          textArea.inputEl.addClass("ignorepaths-textarea");
-        });
-
-      new Setting(settingsDiv)
-        .setName(t("settings_onlyallowpaths"))
-        .setDesc(t("settings_onlyallowpaths_desc"))
-        .setClass("onlyallowpaths-settings")
-
-        .addTextArea((textArea) => {
-          textArea
-            .setValue(
-              `${(this.plugin.settings.onlyAllowPaths ?? []).join("\n")}`
-            )
-            .onChange(async (value) => {
-              this.plugin.settings.onlyAllowPaths = value
-                .trim()
-                .split("\n")
-                .filter((x) => x.trim() !== "");
-              await this.plugin.saveSettings();
-            });
-          textArea.inputEl.rows = 10;
-          textArea.inputEl.cols = 30;
-
-          textArea.inputEl.addClass("onlyallowpaths-textarea");
-        });
-
-      new Setting(settingsDiv)
-        .setName(t("settings_enablemobilestatusbar"))
-        .setDesc(t("settings_enablemobilestatusbar_desc"))
-        .addDropdown(async (dropdown) => {
-          dropdown
-            .addOption("enable", t("enable"))
-            .addOption("disable", t("disable"));
-
-          dropdown
-            .setValue(
-              `${
-                this.plugin.settings.enableMobileStatusBar
-                  ? "enable"
-                  : "disable"
-              }`
-            )
-            .onChange(async (val) => {
-              if (val === "enable") {
-                this.plugin.settings.enableMobileStatusBar = true;
-                this.plugin.appContainerObserver =
-                  changeMobileStatusBar("enable");
-              } else {
-                this.plugin.settings.enableMobileStatusBar = false;
-                changeMobileStatusBar(
-                  "disable",
-                  this.plugin.appContainerObserver
-                );
-                this.plugin.appContainerObserver?.disconnect();
-                this.plugin.appContainerObserver = undefined;
-              }
-              await this.plugin.saveSettings();
-            });
-        });
-
-    //////////////////////////////////////////////////
-    // 配置管理
-    //////////////////////////////////////////////////
-
-    const configMgmtDiv = containerEl.createEl("div");
-    configMgmtDiv.createEl("h2", { text: t("config_mgmt_title") });
-
-    // --- 本地设备配置 ---
-    configMgmtDiv.createEl("h3", { text: t("config_mgmt_local_section") });
-
-    new Setting(configMgmtDiv)
-      .setName(t("device_config_mode_title"))
-      .setDesc(t("device_config_mode_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("legacy", t("device_config_mode_legacy"));
-        dropdown.addOption("device", t("device_config_mode_device"));
-        dropdown
-          .setValue(
-            `${this.plugin.settings.enableDeviceConfigSync ? "device" : "legacy"}`
-          )
-          .onChange(async (val) => {
-            const enableDevice = val === "device";
-            if (enableDevice && !this.plugin.settings.enableDeviceConfigSync) {
-              const deviceId = this.plugin.deviceId;
-              if (!this.plugin.settings.deviceProfiles) {
-                this.plugin.settings.deviceProfiles = {};
-              }
-              if (!this.plugin.settings.deviceProfiles[deviceId]) {
-                this.plugin.settings.deviceProfiles[deviceId] = {
-                  deviceId,
-                  deviceName: Platform.isMobile
-                    ? t("device_config_default_name_mobile")
-                    : t("device_config_default_name_desktop"),
-                  platform: Platform.isMobile ? "mobile" : "desktop",
-                  registeredAt: Date.now(),
-                  categorySyncModes: {},
-                  pullOnlyPlugins: [],
-                  skipPlugins: [],
-                };
-              }
-            }
-            this.plugin.settings.enableDeviceConfigSync = enableDevice;
-            await this.plugin.saveSettings();
-            this.display();
-          });
-      });
-
-    if (this.plugin.settings.enableDeviceConfigSync) {
-      const deviceId = this.plugin.deviceId;
-      const deviceProfile = this.plugin.settings.deviceProfiles?.[deviceId] ?? {
-        deviceId,
-        deviceName: Platform.isMobile
-          ? t("device_config_default_name_mobile")
-          : t("device_config_default_name_desktop"),
-        platform: Platform.isMobile ? "mobile" : "desktop",
-        registeredAt: Date.now(),
-        categorySyncModes: {},
-        pullOnlyPlugins: [],
-        skipPlugins: [],
-      };
-
-      new Setting(configMgmtDiv)
-        .setName(t("device_config_current_device"))
-        .setDesc(
-          `${t("device_config_platform")}: ${deviceProfile.platform === "mobile" ? t("device_config_platform_mobile") : t("device_config_platform_desktop")} | ID: ${deviceId.slice(0, 8)}...`
-        )
-        .addText((text) => {
-          text
-            .setPlaceholder(t("device_config_name_placeholder"))
-            .setValue(deviceProfile.deviceName)
-            .onChange(async (val) => {
-              if (!this.plugin.settings.deviceProfiles) {
-                this.plugin.settings.deviceProfiles = {};
-              }
-              const profile =
-                this.plugin.settings.deviceProfiles[deviceId] ?? deviceProfile;
-              this.plugin.settings.deviceProfiles[deviceId] = {
-                ...profile,
-                deviceName: val,
-              };
-              await this.plugin.saveSettings();
-            });
-        });
-
-      for (const category of ALL_CONFIG_SYNC_CATEGORIES) {
-        const currentMode = deviceProfile.categorySyncModes[category] ?? "sync";
-        new Setting(configMgmtDiv)
-          .setName(t(`device_config_category_${category}`))
-          .addDropdown((dropdown) => {
-            dropdown.addOption("sync", t("device_config_mode_sync"));
-            dropdown.addOption("pull_only", t("device_config_mode_pull_only"));
-            dropdown.addOption("push_only", t("device_config_mode_push_only"));
-            dropdown.addOption("skip", t("device_config_mode_skip"));
-            dropdown.setValue(currentMode).onChange(async (val) => {
-              if (!this.plugin.settings.deviceProfiles) {
-                this.plugin.settings.deviceProfiles = {};
-              }
-              const profile =
-                this.plugin.settings.deviceProfiles[deviceId] ?? deviceProfile;
-              const newModes = {
-                ...profile.categorySyncModes,
-                [category]: val as ConfigSyncMode,
-              };
-              this.plugin.settings.deviceProfiles[deviceId] = {
-                ...profile,
-                categorySyncModes: newModes,
-              };
-              await this.plugin.saveSettings();
-            });
-          });
-      }
-
-      const pluginsDataMode = deviceProfile.categorySyncModes.pluginsData ?? "sync";
-      if (pluginsDataMode !== "skip") {
-        try {
-          const communityPluginsStr = await this.plugin.app.vault.adapter.read(
-            ".obsidian/community-plugins.json"
-          );
-          const enabledPluginIds: string[] = JSON.parse(communityPluginsStr);
-          const otherPlugins = enabledPluginIds.filter(
-            (id) => id !== this.plugin.manifest.id
-          );
-
-          if (otherPlugins.length > 0) {
-            new Setting(configMgmtDiv)
-              .setName(t("device_config_per_plugin"))
-              .setDesc(t("device_config_per_plugin_desc"));
-
-            for (const pluginId of otherPlugins) {
-              const isPullOnly = deviceProfile.pullOnlyPlugins?.includes(pluginId) ?? false;
-              const isSkip = deviceProfile.skipPlugins?.includes(pluginId) ?? false;
-              let currentOverride = "default";
-              if (isSkip) currentOverride = "skip";
-              else if (isPullOnly) currentOverride = "pull_only";
-
-              new Setting(configMgmtDiv)
-                .setName(pluginId)
-                .addDropdown((dropdown) => {
-                  dropdown.addOption("default", t("device_config_plugin_default"));
-                  dropdown.addOption("pull_only", t("device_config_mode_pull_only"));
-                  dropdown.addOption("skip", t("device_config_mode_skip"));
-                  dropdown.setValue(currentOverride).onChange(async (val) => {
-                    if (!this.plugin.settings.deviceProfiles) {
-                      this.plugin.settings.deviceProfiles = {};
-                    }
-                    const profile =
-                      this.plugin.settings.deviceProfiles[deviceId] ?? deviceProfile;
-                    const pullOnly = (profile.pullOnlyPlugins ?? []).filter(
-                      (id) => id !== pluginId
-                    );
-                    const skip = (profile.skipPlugins ?? []).filter(
-                      (id) => id !== pluginId
-                    );
-                    if (val === "pull_only") pullOnly.push(pluginId);
-                    if (val === "skip") skip.push(pluginId);
-                    this.plugin.settings.deviceProfiles[deviceId] = {
-                      ...profile,
-                      pullOnlyPlugins: pullOnly,
-                      skipPlugins: skip,
-                    };
-                    await this.plugin.saveSettings();
-                  });
-                });
-            }
-          }
-        } catch {
-          // community-plugins.json 可能不存在
-        }
-      }
-    }
-
-    // --- 远程配置管理 ---
-    configMgmtDiv.createEl("h3", { text: t("config_mgmt_remote_section") });
-
-    new Setting(configMgmtDiv)
-      .setName(t("config_mgmt_save"))
-      .setDesc(t("config_mgmt_save_desc"))
-      .addButton((button) => {
-        button.setButtonText(t("config_mgmt_save"));
-        button.onClick(async () => {
-          const settings = this.plugin.settings;
-          if (!settings.serviceType) {
-            new Notice(t("config_mgmt_no_remote"));
-            return;
-          }
-          try {
-            new Notice(t("config_mgmt_saving"));
-            const client = getClient(
-              settings,
-              this.app.vault.getName(),
-              () => this.plugin.saveSettings()
-            );
-            const deviceId = this.plugin.deviceId;
-            const deviceProfile = settings.deviceProfiles?.[deviceId];
-            const deviceName = deviceProfile?.deviceName ?? (Platform.isMobile ? "Mobile" : "Desktop");
-            const snapshot = buildConfigSnapshot(
-              settings,
-              deviceId,
-              deviceName,
-              this.plugin.manifest.version
-            );
-            await saveConfigToRemote(client, snapshot, deviceId);
-            new Notice(t("config_mgmt_save_success"));
-          } catch (err) {
-            new Notice(`${t("config_mgmt_save_fail")}: ${err}`);
-          }
-        });
-      });
-
-    new Setting(configMgmtDiv)
+    new Setting(syncConfigDiv)
       .setName(t("config_mgmt_pull"))
       .setDesc(t("config_mgmt_pull_desc"))
       .addButton((button) => {
@@ -1569,17 +877,45 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             new Notice(`${t("config_mgmt_pull_fail")}: ${err}`);
           }
         });
+      })
+      .addButton((button) => {
+        button.setButtonText(t("settings_save_config"));
+        button.onClick(async () => {
+          const settings = this.plugin.settings;
+          if (!settings.serviceType) {
+            new Notice(t("config_mgmt_no_remote"));
+            return;
+          }
+          try {
+            new Notice(t("settings_save_config_saving"));
+            const client = getClient(
+              settings,
+              this.app.vault.getName(),
+              () => this.plugin.saveSettings()
+            );
+            const deviceId = this.plugin.deviceId;
+            const deviceProfile = settings.deviceProfiles?.[deviceId];
+            const deviceName = deviceProfile?.deviceName ?? (Platform.isMobile ? "Mobile" : "Desktop");
+            const snapshot = buildConfigSnapshot(
+              settings,
+              deviceId,
+              deviceName,
+              this.plugin.manifest.version
+            );
+            await saveConfigToRemote(client, snapshot, deviceId);
+            new Notice(t("settings_save_config_success"));
+          } catch (err) {
+            new Notice(`${t("settings_save_config_fail")}: ${err}`);
+          }
+        });
       });
 
     // 设备列表容器
-    const deviceListContainer = configMgmtDiv.createDiv();
-    deviceListContainer.createEl("h4", { text: t("config_mgmt_device_list") });
-
+    const deviceListContainer = syncConfigDiv.createDiv();
     // JSON 查看器
     let jsonViewer: HTMLTextAreaElement | null = null;
 
     const renderDeviceList = (container: HTMLElement, t: (x: any, vars?: any) => string) => {
-      // 清除旧的设备列表（保留标题）
       const existingItems = container.querySelectorAll(".config-mgmt-device-item");
       for (const item of existingItems) {
         item.remove();
@@ -1592,7 +928,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       for (const snapshot of this.pulledSnapshots) {
         const itemDiv = container.createDiv({ cls: "config-mgmt-device-item" });
         const savedTime = new Date(snapshot.savedAt).toLocaleString();
-        const platform = snapshot.pluginSettings;
 
         new Setting(itemDiv)
           .setName(
@@ -1665,18 +1000,665 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       }
     };
 
-    // 初始渲染已有的快照
     this.renderDeviceList = renderDeviceList;
     renderDeviceList(deviceListContainer, t);
 
     // JSON 查看器区域
-    configMgmtDiv.createEl("h4", { text: t("config_mgmt_json_viewer") });
-    jsonViewer = configMgmtDiv.createEl("textarea", {
+    syncConfigDiv.createEl("h4", { text: t("config_mgmt_json_viewer") });
+    jsonViewer = syncConfigDiv.createEl("textarea", {
       cls: "config-mgmt-json-viewer",
       attr: { readonly: "", rows: "20", placeholder: "JSON..." },
     });
 
-    //////////////////////////////////////////////////
+    // ===== 快速操作 =====
+    syncConfigDiv.createEl("h3", { text: t("settings_quick_actions") });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_quick_pull"))
+      .setDesc(t("settings_quick_pull_desc"))
+      .addButton((button) => {
+        button.setButtonText(t("settings_quick_pull_button"));
+        button.onClick(async () => {
+          const settings = this.plugin.settings;
+          if (!settings.serviceType) {
+            new Notice(t("settings_quick_pull_no_remote"));
+            return;
+          }
+          try {
+            new Notice(t("settings_quick_pull_pulling"));
+            const client = getClient(
+              settings,
+              this.app.vault.getName(),
+              () => this.plugin.saveSettings()
+            );
+            const snapshots = await pullConfigsFromRemote(client);
+            if (snapshots.length === 0) {
+              new Notice(t("settings_quick_pull_empty"));
+              return;
+            }
+            const latest = snapshots[0];
+            const savedTime = new Date(latest.savedAt).toLocaleString();
+            const confirmed = confirm(
+              t("settings_quick_pull_confirm", {
+                deviceName: latest.savedByDeviceName,
+                time: savedTime,
+              })
+            );
+            if (!confirmed) return;
+            const newSettings = applySnapshotToLocal(
+              latest,
+              this.plugin.settings,
+              this.plugin.deviceId
+            );
+            Object.assign(this.plugin.settings, newSettings);
+            await this.plugin.saveSettings();
+            new Notice(
+              t("settings_quick_pull_success", {
+                deviceName: latest.savedByDeviceName,
+              })
+            );
+            this.display();
+          } catch (err) {
+            new Notice(`${t("settings_quick_pull_fail")}: ${err}`);
+          }
+        });
+      });
+
+    // ===== 本设备信息 =====
+    syncConfigDiv.createEl("h3", { text: t("settings_device_info") });
+
+    // 默认启用设备模式，确保 deviceProfile 存在
+    {
+      const deviceId = this.plugin.deviceId;
+      if (!this.plugin.settings.deviceProfiles) {
+        this.plugin.settings.deviceProfiles = {};
+      }
+      if (!this.plugin.settings.deviceProfiles[deviceId]) {
+        this.plugin.settings.deviceProfiles[deviceId] = {
+          deviceId,
+          deviceName: Platform.isMobile
+            ? t("device_config_default_name_mobile")
+            : t("device_config_default_name_desktop"),
+          platform: Platform.isMobile ? "mobile" : "desktop",
+          registeredAt: Date.now(),
+          categorySyncModes: {},
+          pullOnlyPlugins: [],
+          skipPlugins: [],
+        };
+      }
+      // 确保设备模式开启
+      if (!this.plugin.settings.enableDeviceConfigSync) {
+        this.plugin.settings.enableDeviceConfigSync = true;
+        this.plugin.saveSettings();
+      }
+    }
+
+    {
+      const deviceId = this.plugin.deviceId;
+      const deviceProfile = this.plugin.settings.deviceProfiles?.[deviceId];
+
+      new Setting(syncConfigDiv)
+        .setName(t("device_config_current_device"))
+        .setDesc(
+          `${t("device_config_platform")}: ${deviceProfile?.platform === "mobile" ? t("device_config_platform_mobile") : t("device_config_platform_desktop")} | ID: ${deviceId.slice(0, 8)}...`
+        )
+        .addText((text) => {
+          text
+            .setPlaceholder(t("device_config_name_placeholder"))
+            .setValue(deviceProfile?.deviceName ?? "")
+            .onChange(async (val) => {
+              if (!this.plugin.settings.deviceProfiles) {
+                this.plugin.settings.deviceProfiles = {};
+              }
+              const profile =
+                this.plugin.settings.deviceProfiles[deviceId] ?? deviceProfile;
+              this.plugin.settings.deviceProfiles[deviceId] = {
+                ...profile,
+                deviceName: val,
+              };
+              await this.plugin.saveSettings();
+            });
+        });
+    }
+
+    // ===== 自动化 =====
+    syncConfigDiv.createEl("h3", { text: t("settings_automation") });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_autorun"))
+      .setDesc(t("settings_autorun_desc"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption("-1", t("settings_autorun_notset"));
+        dropdown.addOption(`${1000 * 60 * 1}`, t("settings_autorun_1min"));
+        dropdown.addOption(`${1000 * 60 * 5}`, t("settings_autorun_5min"));
+        dropdown.addOption(`${1000 * 60 * 10}`, t("settings_autorun_10min"));
+        dropdown.addOption(`${1000 * 60 * 30}`, t("settings_autorun_30min"));
+
+        dropdown
+          .setValue(`${this.plugin.settings.autoRunEveryMilliseconds}`)
+          .onChange(async (val: string) => {
+            const realVal = Number.parseInt(val);
+            this.plugin.settings.autoRunEveryMilliseconds = realVal;
+            await this.plugin.saveSettings();
+            if (
+              (realVal === undefined || realVal === null || realVal <= 0) &&
+              this.plugin.autoRunIntervalID !== undefined
+            ) {
+              window.clearInterval(this.plugin.autoRunIntervalID);
+              this.plugin.autoRunIntervalID = undefined;
+            } else if (
+              realVal !== undefined &&
+              realVal !== null &&
+              realVal > 0
+            ) {
+              const intervalID = window.setInterval(() => {
+                console.info("auto run from settings.ts");
+                this.plugin.syncRun("auto");
+              }, realVal);
+              this.plugin.autoRunIntervalID = intervalID;
+              this.plugin.registerInterval(intervalID);
+            }
+          });
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_runoncestartup"))
+      .setDesc(t("settings_runoncestartup_desc"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption("-1", t("settings_runoncestartup_notset"));
+        dropdown.addOption(
+          `${1000 * 1 * 1}`,
+          t("settings_runoncestartup_1sec")
+        );
+        dropdown.addOption(
+          `${1000 * 10 * 1}`,
+          t("settings_runoncestartup_10sec")
+        );
+        dropdown.addOption(
+          `${1000 * 30 * 1}`,
+          t("settings_runoncestartup_30sec")
+        );
+
+        dropdown
+          .setValue(`${this.plugin.settings.initRunAfterMilliseconds}`)
+          .onChange(async (val: string) => {
+            const realVal = Number.parseInt(val);
+            this.plugin.settings.initRunAfterMilliseconds = realVal;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_runonsave"))
+      .setDesc(t("settings_runonsave_desc"))
+      .addDropdown(async (dropdown) => {
+        dropdown.addOption("-1", t("settings_runonsave_notset"));
+        dropdown.addOption(`${1000 * 5}`, t("settings_runonsave_5sec"));
+        dropdown.addOption(`${1000 * 10}`, t("settings_runonsave_10sec"));
+        dropdown.addOption(`${1000 * 15}`, t("settings_runonsave_15sec"));
+        dropdown.addOption(`${1000 * 30}`, t("settings_runonsave_30sec"));
+
+        dropdown
+          .setValue(`${this.plugin.settings.syncOnSaveAfterMilliseconds}`)
+          .onChange(async (val: string) => {
+            const realVal = Number.parseInt(val);
+            this.plugin.settings.syncOnSaveAfterMilliseconds = realVal;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    // ===== 文件同步策略 =====
+    syncConfigDiv.createEl("h3", { text: t("settings_file_sync_strategy") });
+
+    new Setting(syncConfigDiv)
+      .setName(t("setting_syncdirection"))
+      .setDesc(stringToFragment(t("setting_syncdirection_desc")))
+      .addDropdown((dropdown) => {
+        dropdown.addOption(
+          "bidirectional",
+          t("setting_syncdirection_bidirectional_desc")
+        );
+        dropdown.addOption(
+          "incremental_push_only",
+          t("setting_syncdirection_incremental_push_only_desc")
+        );
+        dropdown.addOption(
+          "incremental_pull_only",
+          t("setting_syncdirection_incremental_pull_only_desc")
+        );
+        dropdown.addOption(
+          "incremental_push_and_delete_only",
+          t("setting_syncdirection_incremental_push_and_delete_only_desc")
+        );
+        dropdown.addOption(
+          "incremental_pull_and_delete_only",
+          t("setting_syncdirection_incremental_pull_and_delete_only_desc")
+        );
+
+        dropdown
+          .setValue(this.plugin.settings.syncDirection ?? "bidirectional")
+          .onChange(async (val) => {
+            this.plugin.settings.syncDirection = val as SyncDirectionsType;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    let conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
+    if (
+      (this.plugin.settings.conflictAction ?? "keep_newer") ===
+      "smart_conflict"
+    ) {
+      conflictActionSettingOrigDesc += t(
+        "settings_conflictaction_smart_conflict_desc"
+      );
+    }
+    const conflictActionSetting = new Setting(syncConfigDiv)
+      .setName(t("settings_conflictaction"))
+      .setDesc(stringToFragment(conflictActionSettingOrigDesc));
+    conflictActionSetting.addDropdown((dropdown) => {
+      dropdown
+        .addOption("keep_newer", t("settings_conflictaction_keep_newer"))
+        .addOption("keep_larger", t("settings_conflictaction_keep_larger"))
+        .addOption(
+          "smart_conflict",
+          t("settings_conflictaction_smart_conflict")
+        )
+        .setValue(this.plugin.settings.conflictAction ?? "keep_newer")
+        .onChange(async (val) => {
+          this.plugin.settings.conflictAction = val as ConflictActionType;
+          await this.plugin.saveSettings();
+
+          conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
+          if (
+            (this.plugin.settings.conflictAction ?? "keep_newer") ===
+            "smart_conflict"
+          ) {
+            conflictActionSettingOrigDesc += t(
+              "settings_conflictaction_smart_conflict_desc"
+            );
+          }
+          conflictActionSetting.setDesc(
+            stringToFragment(conflictActionSettingOrigDesc)
+          );
+        });
+    });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_deletetowhere"))
+      .setDesc(t("settings_deletetowhere_desc"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption(
+          "system",
+          t("settings_deletetowhere_system_trash")
+        );
+        dropdown.addOption(
+          "obsidian",
+          t("settings_deletetowhere_obsidian_trash")
+        );
+        dropdown
+          .setValue(this.plugin.settings.deleteToWhere ?? "system")
+          .onChange(async (val) => {
+            this.plugin.settings.deleteToWhere = val as
+              | "system"
+              | "obsidian";
+            await this.plugin.saveSettings();
+          });
+      });
+
+    const percentage1 = new Setting(syncConfigDiv)
+      .setName(t("settings_protectmodifypercentage"))
+      .setDesc(t("settings_protectmodifypercentage_desc"));
+
+    const percentage2 = new Setting(syncConfigDiv)
+      .setName(t("settings_protectmodifypercentage_customfield"))
+      .setDesc(t("settings_protectmodifypercentage_customfield_desc"));
+    if ((this.plugin.settings.protectModifyPercentage ?? 50) % 10 === 0) {
+      percentage2.settingEl.addClass("settings-percentage-custom-hide");
+    }
+    let percentage2Text: TextComponent | undefined = undefined;
+    percentage2.addText((text) => {
+      text.inputEl.type = "number";
+      percentage2Text = text;
+      text
+        .setPlaceholder("0 ~ 100")
+        .setValue(`${this.plugin.settings.protectModifyPercentage ?? 50}`)
+        .onChange(async (val) => {
+          let k = Number.parseFloat(val.trim());
+          if (Number.isNaN(k)) {
+            // do nothing
+          } else {
+            if (k < 0) {
+              k = 0;
+            } else if (k > 100) {
+              k = 100;
+            }
+            this.plugin.settings.protectModifyPercentage = k;
+            await this.plugin.saveSettings();
+          }
+        });
+    });
+
+    percentage1.addDropdown((dropdown) => {
+      for (const i of Array.from({ length: 11 }, (x, i) => i * 10)) {
+        let desc = `${i}`;
+        if (i === 0) {
+          desc = t("settings_protectmodifypercentage_000_desc");
+        } else if (i === 50) {
+          desc = t("settings_protectmodifypercentage_050_desc");
+        } else if (i === 100) {
+          desc = t("settings_protectmodifypercentage_100_desc");
+        }
+        dropdown.addOption(`${i}`, desc);
+      }
+      dropdown.addOption(
+        "custom",
+        t("settings_protectmodifypercentage_custom_desc")
+      );
+
+      const p = this.plugin.settings.protectModifyPercentage ?? 50;
+      let initVal = "custom";
+      if (p % 10 === 0) {
+        initVal = `${p}`;
+      } else {
+        percentage2.settingEl.removeClass("settings-percentage-custom");
+      }
+      dropdown.setValue(initVal).onChange(async (val) => {
+        const k = Number.parseInt(val);
+        if (val === "custom" || Number.isNaN(k)) {
+          percentage2.settingEl.removeClass(
+            "settings-percentage-custom-hide"
+          );
+        } else {
+          this.plugin.settings.protectModifyPercentage = k;
+          percentage2.settingEl.addClass("settings-percentage-custom-hide");
+          percentage2Text?.setValue(`${k}`);
+          await this.plugin.saveSettings();
+        }
+      });
+    });
+
+    generateClearDupFilesSettingsPart(
+      syncConfigDiv,
+      t,
+      this.app,
+      this.plugin
+    );
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_skiplargefiles"))
+      .setDesc(t("settings_skiplargefiles_desc"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption("-1", t("settings_skiplargefiles_notset"));
+        dropdown.addOption(`${1048576}`, t("settings_skiplargefiles_1mb"));
+        dropdown.addOption(`${1048576 * 5}`, t("settings_skiplargefiles_5mb"));
+        dropdown.addOption(`${1048576 * 10}`, t("settings_skiplargefiles_10mb"));
+        dropdown.addOption(
+          `${1048576 * 50}`,
+          t("settings_skiplargefiles_50mb")
+        );
+        dropdown.addOption(
+          `${1048576 * 100}`,
+          t("settings_skiplargefiles_100mb")
+        );
+        dropdown.addOption(
+          `${1048576 * 500}`,
+          t("settings_skiplargefiles_500mb")
+        );
+
+        dropdown
+          .setValue(`${this.plugin.settings.skipSizeLargerThan}`)
+          .onChange(async (val: string) => {
+            this.plugin.settings.skipSizeLargerThan = Number.parseInt(val);
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_concurrency"))
+      .setDesc(t("settings_concurrency_desc"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption("1", "1");
+        dropdown.addOption("3", "3");
+        dropdown.addOption("5", "5");
+        dropdown.addOption("10", "10");
+        dropdown.addOption("20", "20");
+
+        dropdown
+          .setValue(`${this.plugin.settings.concurrency ?? 5}`)
+          .onChange(async (val: string) => {
+            this.plugin.settings.concurrency = Number.parseInt(val);
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_syncunderscoreitems"))
+      .setDesc(t("settings_syncunderscoreitems_desc"))
+      .addDropdown(async (dropdown) => {
+        dropdown.addOption("enable", t("enable"));
+        dropdown.addOption("disable", t("disable"));
+
+        dropdown
+          .setValue(
+            `${this.plugin.settings.syncUnderscoreItems ? "enable" : "disable"}`
+          )
+          .onChange(async (val) => {
+            this.plugin.settings.syncUnderscoreItems = val === "enable";
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_enablestatusbar_info"))
+      .setDesc(t("settings_enablestatusbar_info_desc"))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.enableStatusBarInfo ?? false)
+          .onChange(async (val) => {
+            this.plugin.settings.enableStatusBarInfo = val;
+            await this.plugin.saveSettings();
+            new Notice(t("settings_enablestatusbar_reloadrequired_notice"));
+          });
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_resetstatusbar_time"))
+      .setDesc(t("settings_resetstatusbar_time_desc"))
+      .addButton((button) => {
+        button.setButtonText(t("settings_resetstatusbar_button"));
+        button.onClick(async () => {
+          await upsertLastSuccessSyncTimeByVault(
+            this.plugin.db,
+            this.plugin.vaultRandomID,
+            -1
+          );
+          await upsertLastFailedSyncTimeByVault(
+            this.plugin.db,
+            this.plugin.vaultRandomID,
+            -1
+          );
+          this.plugin.updateLastSyncMsg(
+            undefined,
+            "not_syncing",
+            null,
+            null
+          );
+          new Notice(t("settings_resetstatusbar_notice"));
+        });
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_enablemobilestatusbar"))
+      .setDesc(t("settings_enablemobilestatusbar_desc"))
+      .addDropdown(async (dropdown) => {
+        dropdown
+          .addOption("enable", t("enable"))
+          .addOption("disable", t("disable"));
+
+        dropdown
+          .setValue(
+            `${
+              this.plugin.settings.enableMobileStatusBar
+                ? "enable"
+                : "disable"
+            }`
+          )
+          .onChange(async (val) => {
+            if (val === "enable") {
+              this.plugin.settings.enableMobileStatusBar = true;
+              this.plugin.appContainerObserver =
+                changeMobileStatusBar("enable");
+            } else {
+              this.plugin.settings.enableMobileStatusBar = false;
+              changeMobileStatusBar(
+                "disable",
+                this.plugin.appContainerObserver
+              );
+              this.plugin.appContainerObserver?.disconnect();
+              this.plugin.appContainerObserver = undefined;
+            }
+            await this.plugin.saveSettings();
+          });
+      });
+
+    // ===== 过滤规则 =====
+    syncConfigDiv.createEl("h3", { text: t("settings_filter_rules") });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_ignorepaths"))
+      .setDesc(t("settings_ignorepaths_desc"))
+      .setClass("ignorepaths-settings")
+      .addTextArea((textArea) => {
+        textArea
+          .setValue(`${(this.plugin.settings.ignorePaths ?? []).join("\n")}`)
+          .onChange(async (value) => {
+            this.plugin.settings.ignorePaths = value
+              .trim()
+              .split("\n")
+              .filter((x) => x.trim() !== "");
+            await this.plugin.saveSettings();
+          });
+        textArea.inputEl.rows = 10;
+        textArea.inputEl.cols = 30;
+        textArea.inputEl.addClass("ignorepaths-textarea");
+      });
+
+    new Setting(syncConfigDiv)
+      .setName(t("settings_onlyallowpaths"))
+      .setDesc(t("settings_onlyallowpaths_desc"))
+      .setClass("onlyallowpaths-settings")
+      .addTextArea((textArea) => {
+        textArea
+          .setValue(
+            `${(this.plugin.settings.onlyAllowPaths ?? []).join("\n")}`
+          )
+          .onChange(async (value) => {
+            this.plugin.settings.onlyAllowPaths = value
+              .trim()
+              .split("\n")
+              .filter((x) => x.trim() !== "");
+            await this.plugin.saveSettings();
+          });
+        textArea.inputEl.rows = 10;
+        textArea.inputEl.cols = 30;
+        textArea.inputEl.addClass("onlyallowpaths-textarea");
+      });
+
+    // ===== Obsidian 配置同步 =====
+    syncConfigDiv.createEl("h3", { text: t("settings_obsidian_config_sync") });
+
+    {
+      const deviceId = this.plugin.deviceId;
+      const deviceProfile = this.plugin.settings.deviceProfiles?.[deviceId];
+
+      for (const category of ALL_CONFIG_SYNC_CATEGORIES) {
+        const currentMode = deviceProfile?.categorySyncModes[category] ?? "sync";
+        new Setting(syncConfigDiv)
+          .setName(t(`device_config_category_${category}`))
+          .addDropdown((dropdown) => {
+            dropdown.addOption("sync", t("device_config_mode_sync"));
+            dropdown.addOption("pull_only", t("device_config_mode_pull_only"));
+            dropdown.addOption("push_only", t("device_config_mode_push_only"));
+            dropdown.addOption("skip", t("device_config_mode_skip"));
+            dropdown.setValue(currentMode).onChange(async (val) => {
+              if (!this.plugin.settings.deviceProfiles) {
+                this.plugin.settings.deviceProfiles = {};
+              }
+              const profile =
+                this.plugin.settings.deviceProfiles[deviceId] ?? deviceProfile;
+              const newModes = {
+                ...profile.categorySyncModes,
+                [category]: val as ConfigSyncMode,
+              };
+              this.plugin.settings.deviceProfiles[deviceId] = {
+                ...profile,
+                categorySyncModes: newModes,
+              };
+              await this.plugin.saveSettings();
+            });
+          });
+      }
+
+      // 各插件独立覆盖
+      const pluginsDataMode = deviceProfile?.categorySyncModes.pluginsData ?? "sync";
+      if (pluginsDataMode !== "skip") {
+        try {
+          const communityPluginsStr = await this.plugin.app.vault.adapter.read(
+            ".obsidian/community-plugins.json"
+          );
+          const enabledPluginIds: string[] = JSON.parse(communityPluginsStr);
+          const otherPlugins = enabledPluginIds.filter(
+            (id) => id !== this.plugin.manifest.id
+          );
+
+          if (otherPlugins.length > 0) {
+            new Setting(syncConfigDiv)
+              .setName(t("device_config_per_plugin"))
+              .setDesc(t("device_config_per_plugin_desc"));
+
+            for (const pluginId of otherPlugins) {
+              const isPullOnly = deviceProfile?.pullOnlyPlugins?.includes(pluginId) ?? false;
+              const isSkip = deviceProfile?.skipPlugins?.includes(pluginId) ?? false;
+              let currentOverride = "default";
+              if (isSkip) currentOverride = "skip";
+              else if (isPullOnly) currentOverride = "pull_only";
+
+              new Setting(syncConfigDiv)
+                .setName(pluginId)
+                .addDropdown((dropdown) => {
+                  dropdown.addOption("default", t("device_config_plugin_default"));
+                  dropdown.addOption("pull_only", t("device_config_mode_pull_only"));
+                  dropdown.addOption("skip", t("device_config_mode_skip"));
+                  dropdown.setValue(currentOverride).onChange(async (val) => {
+                    if (!this.plugin.settings.deviceProfiles) {
+                      this.plugin.settings.deviceProfiles = {};
+                    }
+                    const profile =
+                      this.plugin.settings.deviceProfiles[deviceId] ?? deviceProfile;
+                    const pullOnly = (profile.pullOnlyPlugins ?? []).filter(
+                      (id) => id !== pluginId
+                    );
+                    const skip = (profile.skipPlugins ?? []).filter(
+                      (id) => id !== pluginId
+                    );
+                    if (val === "pull_only") pullOnly.push(pluginId);
+                    if (val === "skip") skip.push(pluginId);
+                    this.plugin.settings.deviceProfiles[deviceId] = {
+                      ...profile,
+                      pullOnlyPlugins: pullOnly,
+                      skipPlugins: skip,
+                    };
+                    await this.plugin.saveSettings();
+                  });
+                });
+            }
+          }
+        } catch {
+          // community-plugins.json 可能不存在
+        }
+      }
+    }
+
     // below for import and export functions
     //////////////////////////////////////////////////
 

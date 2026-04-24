@@ -189,7 +189,7 @@ export interface DeviceConfigProfile {
 }
 
 /** 配置管理远程存储目录 */
-export const CONFIG_MGMT_DIR = ".obsidian-sync-config-mgmt";
+export const CONFIG_MGMT_DIR = "obsidian-sync-config-mgmt";
 export const CONFIG_MGMT_DEVICES_DIR = `${CONFIG_MGMT_DIR}/devices`;
 export const CONFIG_MGMT_MANIFEST = `${CONFIG_MGMT_DIR}/manifest.json`;
 export const CONFIG_MGMT_SNAPSHOT_VERSION = 1;
