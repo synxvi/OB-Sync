@@ -67,9 +67,9 @@ export const saveConfigToRemote = async (
   snapshot: ConfigManagementSnapshot,
   deviceId: string
 ): Promise<void> => {
-  // 确保目录存在
-  await fs.mkdir(CONFIG_MGMT_DIR).catch(() => {});
-  await fs.mkdir(CONFIG_MGMT_DEVICES_DIR).catch(() => {});
+  // 确保目录存在（mkdir 要求路径以 / 结尾）
+  await fs.mkdir(`${CONFIG_MGMT_DIR}/`).catch(() => {});
+  await fs.mkdir(`${CONFIG_MGMT_DEVICES_DIR}/`).catch(() => {});
 
   // 写入 manifest
   const manifestContent = str2ab(
