@@ -835,7 +835,64 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+    //////////////////////////////////////////////////
+    // below for sync settings
+    //////////////////////////////////////////////////
+
     const settingsDiv = containerEl.createEl("div");
+    settingsDiv.createEl("h2", { text: t("settings_sync_title") });
+
+    // 快速从远程拉取配置
+    new Setting(settingsDiv)
+      .setName(t("settings_quick_pull"))
+      .setDesc(t("settings_quick_pull_desc"))
+      .addButton((button) => {
+        button.setButtonText(t("settings_quick_pull_button"));
+        button.onClick(async () => {
+          const settings = this.plugin.settings;
+          if (!settings.serviceType) {
+            new Notice(t("settings_quick_pull_no_remote"));
+            return;
+          }
+          try {
+            new Notice(t("settings_quick_pull_pulling"));
+            const client = getClient(
+              settings,
+              this.app.vault.getName(),
+              () => this.plugin.saveSettings()
+            );
+            const snapshots = await pullConfigsFromRemote(client);
+            if (snapshots.length === 0) {
+              new Notice(t("settings_quick_pull_empty"));
+              return;
+            }
+            const latest = snapshots[0];
+            const savedTime = new Date(latest.savedAt).toLocaleString();
+            const confirmed = confirm(
+              t("settings_quick_pull_confirm", {
+                deviceName: latest.savedByDeviceName,
+                time: savedTime,
+              })
+            );
+            if (!confirmed) return;
+            const newSettings = applySnapshotToLocal(
+              latest,
+              this.plugin.settings,
+              this.plugin.deviceId
+            );
+            Object.assign(this.plugin.settings, newSettings);
+            await this.plugin.saveSettings();
+            new Notice(
+              t("settings_quick_pull_success", {
+                deviceName: latest.savedByDeviceName,
+              })
+            );
+            this.display();
+          } catch (err) {
+            new Notice(`${t("settings_quick_pull_fail")}: ${err}`);
+          }
+        });
+      });
 
     new Setting(settingsDiv)
       .setName(t("settings_autorun"))

@@ -427,5 +427,16 @@
   "syncalgov3_button_agree": "同意",
   "syncalgov3_button_disagree": "不同意",
 
-  "menu_check_file_stat": "檢視檔案屬性"
+  "menu_check_file_stat": "檢視檔案屬性",
+
+  "settings_sync_title": "同步設定",
+  "settings_quick_pull": "從遠端快速拉取配置",
+  "settings_quick_pull_desc": "從遠端拉取最新的外掛設定並套用到本裝置。連線設定（WebDAV/OneDrive 鑑權）不會被覆蓋。",
+  "settings_quick_pull_button": "拉取配置",
+  "settings_quick_pull_no_remote": "請先配置遠端服務。",
+  "settings_quick_pull_pulling": "正在從遠端拉取配置...",
+  "settings_quick_pull_empty": "遠端未找到配置。",
+  "settings_quick_pull_confirm": "是否套用來自裝置 \"{{deviceName}}\" 的配置（儲存於 {{time}}）？連線設定不會被覆蓋。",
+  "settings_quick_pull_success": "已成功套用來自裝置 \"{{deviceName}}\" 的配置。",
+  "settings_quick_pull_fail": "從遠端拉取配置失敗"
 }

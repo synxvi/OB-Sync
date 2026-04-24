@@ -428,5 +428,16 @@
   "syncalgov3_button_agree": "同意",
   "syncalgov3_button_disagree": "不同意",
 
-  "menu_check_file_stat": "查看文件属性"
+  "menu_check_file_stat": "查看文件属性",
+
+  "settings_sync_title": "同步设置",
+  "settings_quick_pull": "从远程快速拉取配置",
+  "settings_quick_pull_desc": "从远程拉取最新的插件配置并应用到本设备。连接设置（WebDAV/OneDrive 鉴权）不会被覆盖。",
+  "settings_quick_pull_button": "拉取配置",
+  "settings_quick_pull_no_remote": "请先配置远程服务。",
+  "settings_quick_pull_pulling": "正在从远程拉取配置...",
+  "settings_quick_pull_empty": "远程未找到配置。",
+  "settings_quick_pull_confirm": "是否应用来自设备 \"{{deviceName}}\" 的配置（保存于 {{time}}）？连接设置不会被覆盖。",
+  "settings_quick_pull_success": "已成功应用来自设备 \"{{deviceName}}\" 的配置。",
+  "settings_quick_pull_fail": "从远程拉取配置失败"
 }

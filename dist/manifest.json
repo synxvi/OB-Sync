@@ -1,7 +1,7 @@
 {
   "id": "ob-sync",
   "name": "OB Sync",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "minAppVersion": "0.13.21",
   "description": "A simplified sync plugin with WebDAV and OneDrive support. smart_conflict built-in.",
   "author": "",

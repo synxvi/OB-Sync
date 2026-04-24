@@ -429,5 +429,16 @@
   "syncalgov3_button_agree": "Agree",
   "syncalgov3_button_disagree": "Do Not Agree",
 
-  "menu_check_file_stat": "Check file stats"
+  "menu_check_file_stat": "Check file stats",
+
+  "settings_sync_title": "Sync Settings",
+  "settings_quick_pull": "Quick Pull Config from Remote",
+  "settings_quick_pull_desc": "Pull the latest plugin config from remote and apply it to this device. Connection settings (WebDAV/OneDrive auth) will be preserved.",
+  "settings_quick_pull_button": "Pull Config",
+  "settings_quick_pull_no_remote": "Please configure a remote service first.",
+  "settings_quick_pull_pulling": "Pulling config from remote...",
+  "settings_quick_pull_empty": "No config found on remote.",
+  "settings_quick_pull_confirm": "Apply config from device \"{{deviceName}}\" (saved {{time}})? Your connection settings will be preserved.",
+  "settings_quick_pull_success": "Config applied from device \"{{deviceName}}\".",
+  "settings_quick_pull_fail": "Failed to pull config from remote"
 }
