@@ -407,25 +407,32 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     containerEl.style.setProperty("overflow-wrap", "break-word");
 
     containerEl.empty();
+    containerEl.addClass("obsync-settings");
 
     const t = (x: TransItemType, vars?: any) => {
       return this.plugin.i18n.t(x, vars);
     };
 
-    containerEl.createEl("h1", { text: "OB Sync" });
+    // 品牌区域
+    const heroDiv = containerEl.createDiv({ cls: "obsync-hero" });
+    heroDiv.createEl("span", { cls: "obsync-hero-title", text: "OB Sync" });
+    heroDiv.createEl("span", {
+      cls: "obsync-hero-version",
+      text: `v${this.plugin.manifest.version}`,
+    });
 
     //////////////////////////////////////////////////
     // below for service chooser (part 1/2)
     //////////////////////////////////////////////////
 
     // we need to create the div in advance of any other service divs
-    const serviceChooserDiv = containerEl.createDiv();
+    const serviceChooserDiv = containerEl.createDiv({ cls: "obsync-section" });
     serviceChooserDiv.createEl("h2", { text: t("settings_chooseservice") });
 
     // below for onedrive
     //////////////////////////////////////////////////
 
-    const onedriveDiv = containerEl.createEl("div", { cls: "onedrive-hide" });
+    const onedriveDiv = containerEl.createEl("div", { cls: "onedrive-hide obsync-section" });
     onedriveDiv.toggleClass(
       "onedrive-hide",
       this.plugin.settings.serviceType !== "onedrive"
@@ -582,7 +589,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     // below for webdav
     //////////////////////////////////////////////////
 
-    const webdavDiv = containerEl.createEl("div", { cls: "webdav-hide" });
+    const webdavDiv = containerEl.createEl("div", { cls: "webdav-hide obsync-section" });
     webdavDiv.toggleClass(
       "webdav-hide",
       this.plugin.settings.serviceType !== "webdav"
@@ -839,11 +846,11 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     // 同步与配置（合并原"同步设置" + "配置管理"）
     //////////////////////////////////////////////////
 
-    const syncConfigDiv = containerEl.createEl("div");
+    const syncConfigDiv = containerEl.createEl("div", { cls: "obsync-section" });
     syncConfigDiv.createEl("h2", { text: t("settings_sync_config_title") });
 
     // ===== 远程设备列表 =====
-    syncConfigDiv.createEl("h3", { text: t("settings_remote_devices") });
+    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_remote_devices") });
 
     new Setting(syncConfigDiv)
       .setName(t("config_mgmt_pull"))
@@ -1010,62 +1017,8 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       attr: { readonly: "", rows: "20", placeholder: "JSON..." },
     });
 
-    // ===== 快速操作 =====
-    syncConfigDiv.createEl("h3", { text: t("settings_quick_actions") });
-
-    new Setting(syncConfigDiv)
-      .setName(t("settings_quick_pull"))
-      .setDesc(t("settings_quick_pull_desc"))
-      .addButton((button) => {
-        button.setButtonText(t("settings_quick_pull_button"));
-        button.onClick(async () => {
-          const settings = this.plugin.settings;
-          if (!settings.serviceType) {
-            new Notice(t("settings_quick_pull_no_remote"));
-            return;
-          }
-          try {
-            new Notice(t("settings_quick_pull_pulling"));
-            const client = getClient(
-              settings,
-              this.app.vault.getName(),
-              () => this.plugin.saveSettings()
-            );
-            const snapshots = await pullConfigsFromRemote(client);
-            if (snapshots.length === 0) {
-              new Notice(t("settings_quick_pull_empty"));
-              return;
-            }
-            const latest = snapshots[0];
-            const savedTime = new Date(latest.savedAt).toLocaleString();
-            const confirmed = confirm(
-              t("settings_quick_pull_confirm", {
-                deviceName: latest.savedByDeviceName,
-                time: savedTime,
-              })
-            );
-            if (!confirmed) return;
-            const newSettings = applySnapshotToLocal(
-              latest,
-              this.plugin.settings,
-              this.plugin.deviceId
-            );
-            Object.assign(this.plugin.settings, newSettings);
-            await this.plugin.saveSettings();
-            new Notice(
-              t("settings_quick_pull_success", {
-                deviceName: latest.savedByDeviceName,
-              })
-            );
-            this.display();
-          } catch (err) {
-            new Notice(`${t("settings_quick_pull_fail")}: ${err}`);
-          }
-        });
-      });
-
     // ===== 本设备信息 =====
-    syncConfigDiv.createEl("h3", { text: t("settings_device_info") });
+    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_device_info") });
 
     // 默认启用设备模式，确保 deviceProfile 存在
     {
@@ -1122,7 +1075,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     }
 
     // ===== 自动化 =====
-    syncConfigDiv.createEl("h3", { text: t("settings_automation") });
+    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_automation") });
 
     new Setting(syncConfigDiv)
       .setName(t("settings_autorun"))
@@ -1208,7 +1161,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       });
 
     // ===== 文件同步策略 =====
-    syncConfigDiv.createEl("h3", { text: t("settings_file_sync_strategy") });
+    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_file_sync_strategy") });
 
     new Setting(syncConfigDiv)
       .setName(t("setting_syncdirection"))
@@ -1432,8 +1385,8 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       });
 
     new Setting(syncConfigDiv)
-      .setName(t("settings_syncunderscoreitems"))
-      .setDesc(t("settings_syncunderscoreitems_desc"))
+      .setName(t("settings_syncunderscore"))
+      .setDesc(t("settings_syncunderscore_desc"))
       .addDropdown(async (dropdown) => {
         dropdown.addOption("enable", t("enable"));
         dropdown.addOption("disable", t("disable"));
@@ -1522,7 +1475,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       });
 
     // ===== 过滤规则 =====
-    syncConfigDiv.createEl("h3", { text: t("settings_filter_rules") });
+    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_filter_rules") });
 
     new Setting(syncConfigDiv)
       .setName(t("settings_ignorepaths"))
@@ -1565,7 +1518,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       });
 
     // ===== Obsidian 配置同步 =====
-    syncConfigDiv.createEl("h3", { text: t("settings_obsidian_config_sync") });
+    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_obsidian_config_sync") });
 
     {
       const deviceId = this.plugin.deviceId;
@@ -1663,9 +1616,14 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     //////////////////////////////////////////////////
 
     // import and export
-    const importExportDiv = containerEl.createEl("div");
-    importExportDiv.createEl("h2", {
+    const importExportDetails = containerEl.createEl("details", {
+      cls: "obsync-collapsible",
+    });
+    importExportDetails.createEl("summary", {
       text: t("settings_importexport"),
+    });
+    const importExportDiv = importExportDetails.createEl("div", {
+      cls: "obsync-collapsible-body",
     });
 
     const importExportDivSetting1 = new Setting(importExportDiv)
@@ -1750,8 +1708,13 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     // below for debug
     //////////////////////////////////////////////////
 
-    const debugDiv = containerEl.createEl("div");
-    debugDiv.createEl("h2", { text: t("settings_debug") });
+    const debugDetails = containerEl.createEl("details", {
+      cls: "obsync-collapsible",
+    });
+    debugDetails.createEl("summary", { text: t("settings_debug") });
+    const debugDiv = debugDetails.createEl("div", {
+      cls: "obsync-collapsible-body",
+    });
 
     new Setting(debugDiv)
       .setName(t("settings_debuglevel"))

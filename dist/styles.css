@@ -255,3 +255,205 @@
   padding-bottom: 4px;
   margin-bottom: 4px;
 }
+
+/* ===== OB Sync 增强设置界面 ===== */
+
+/* 根作用域 */
+.obsync-settings {
+  padding-bottom: 40px;
+}
+
+/* 顶部品牌区域 */
+.obsync-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0 4px;
+  margin-bottom: 4px;
+}
+
+.obsync-hero-title {
+  font-size: 1.6em;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.obsync-hero-version {
+  color: var(--text-faint);
+  font-size: 0.82em;
+  font-family: var(--font-monospace);
+}
+
+/* 分区卡片 */
+.obsync-section {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  margin: 18px 0;
+  background: var(--background-secondary);
+  overflow: hidden;
+}
+
+/* 分区标题栏 */
+.obsync-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 !important;
+  padding: 14px 20px;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 1.05em;
+}
+
+.obsync-section > h2::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--interactive-accent);
+  flex-shrink: 0;
+}
+
+/* 分区内容区 */
+.obsync-section-body {
+  padding: 6px 20px 16px;
+}
+
+/* 子分区标题 */
+.obsync-subsection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0 6px;
+  margin-top: 6px;
+  border-bottom: 1px dashed var(--background-modifier-border);
+}
+
+.obsync-subsection h3 {
+  margin: 0 !important;
+  font-size: 0.98em;
+}
+
+.obsync-subsection::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  border-radius: 1.5px;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+
+/* 分区内设置项间距优化 */
+.obsync-section .setting-item {
+  padding: 8px 0;
+  border-bottom: none;
+}
+
+.obsync-section .setting-item + .setting-item {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* 折叠面板（details/summary） */
+details.obsync-collapsible {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  margin: 18px 0;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+
+details.obsync-collapsible > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  cursor: pointer;
+  background: var(--background-primary);
+  font-size: 1.05em;
+  font-weight: 600;
+  list-style: none;
+  -webkit-user-select: none;
+  user-select: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+  transition: background 0.15s ease;
+}
+
+details.obsync-collapsible > summary::before {
+  content: "\25B8";
+  font-size: 0.75em;
+  transition: transform 0.2s ease;
+  display: inline-block;
+  color: var(--text-faint);
+}
+
+details.obsync-collapsible > summary::after {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--interactive-accent);
+  flex-shrink: 0;
+  order: -1;
+  margin-right: 6px;
+}
+
+details.obsync-collapsible[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.obsync-collapsible > summary:hover {
+  background: var(--background-modifier-hover);
+}
+
+details.obsync-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.obsync-collapsible > .obsync-collapsible-body {
+  padding: 6px 20px 16px;
+}
+
+/* 操作按钮组 */
+.obsync-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+
+/* 设备列表项增强 */
+.obsync-settings .config-mgmt-device-item {
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+/* JSON 查看器增强 */
+.obsync-settings .config-mgmt-json-viewer {
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+/* 长描述文本区域 */
+.obsync-settings .settings-long-desc {
+  padding: 0 4px;
+}
+
+/* 密码隐藏切换按钮 */
+.obsync-settings .setting-item-control > span {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.obsync-settings .setting-item-control > span:hover {
+  background: var(--background-modifier-hover);
+}
