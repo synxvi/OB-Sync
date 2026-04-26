@@ -326,14 +326,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 0 6px;
+  padding: 14px 20px 6px;
   margin-top: 6px;
   border-bottom: 1px dashed var(--background-modifier-border);
 }
 
 .obsync-subsection h3 {
   margin: 0 !important;
-  font-size: 0.98em;
+  font-size: 1.05em;
 }
 
 .obsync-subsection::before {
@@ -346,9 +346,15 @@
   flex-shrink: 0;
 }
 
+/* 分区内所有内容添加水平边距（h2 自带 padding 除外） */
+.obsync-section > :not(h2) {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
 /* 分区内设置项间距优化 */
 .obsync-section .setting-item {
-  padding: 8px 0;
+  padding: 8px 20px;
   border-bottom: none;
 }
 
