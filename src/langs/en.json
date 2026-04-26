@@ -446,6 +446,8 @@
   "settings_file_sync_strategy": "File Sync Strategy",
   "settings_filter_rules": "Filter Rules",
   "settings_obsidian_config_sync": "Obsidian Config Sync",
+  "settings_enable_device_config_sync": "Sync Obsidian Config Directory",
+  "settings_enable_device_config_sync_desc": "When enabled, the plugin will scan and sync files in the .obsidian directory (appearance, hotkeys, plugin data, etc.). Use the category settings below to control sync behavior per category.",
   "settings_save_config": "Save Config to Remote",
   "settings_save_config_desc": "Save current device config to remote. Connection settings (WebDAV/OneDrive auth) will be preserved.",
   "settings_save_config_saving": "Saving config to remote...",

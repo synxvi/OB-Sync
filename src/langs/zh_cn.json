@@ -445,6 +445,8 @@
   "settings_file_sync_strategy": "文件同步策略",
   "settings_filter_rules": "过滤规则",
   "settings_obsidian_config_sync": "Obsidian 配置同步",
+  "settings_enable_device_config_sync": "同步 Obsidian 配置目录",
+  "settings_enable_device_config_sync_desc": "开启后，插件将扫描并同步 .obsidian 目录下的配置文件（外观、快捷键、插件数据等）。可通过下方的分类设置精确控制每个类别的同步行为。",
   "settings_save_config": "保存配置到远程",
   "settings_save_config_desc": "将当前设备的插件配置保存到远程。连接设置（WebDAV/OneDrive 鉴权）不会被覆盖。",
   "settings_save_config_saving": "正在保存配置到远程...",

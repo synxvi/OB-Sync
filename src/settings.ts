@@ -1033,11 +1033,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           skipPlugins: [],
         };
       }
-      // 确保设备模式开启
-      if (!this.plugin.settings.enableDeviceConfigSync) {
-        this.plugin.settings.enableDeviceConfigSync = true;
-        this.plugin.saveSettings();
-      }
+      // enableDeviceConfigSync 默认值在 loadSettings 中初始化
     }
 
     {
@@ -1509,7 +1505,21 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     // ===== Obsidian 配置同步 =====
     syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_obsidian_config_sync") });
 
-    {
+    // 配置目录同步总开关
+    new Setting(syncConfigDiv)
+      .setName(t("settings_enable_device_config_sync"))
+      .setDesc(t("settings_enable_device_config_sync_desc"))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.enableDeviceConfigSync ?? true)
+          .onChange(async (val) => {
+            this.plugin.settings.enableDeviceConfigSync = val;
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (this.plugin.settings.enableDeviceConfigSync) {
       const deviceId = this.plugin.deviceId;
       const deviceProfile = this.plugin.settings.deviceProfiles?.[deviceId];
 

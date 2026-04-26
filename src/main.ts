@@ -175,7 +175,8 @@ export default class ObsSyncPlugin extends Plugin {
       this.app.vault.configDir,
       this.manifest.id,
       profiler,
-      this.settings.deleteToWhere ?? "system"
+      this.settings.deleteToWhere ?? "system",
+      this.settings.enableDeviceConfigSync ?? false
     );
     const fsRemote = getClient(
       this.settings,
@@ -800,6 +801,11 @@ export default class ObsSyncPlugin extends Plugin {
       this.settings.syncBookmarks = false;
     }
 
+    if (this.settings.enableDeviceConfigSync === undefined) {
+      // 迁移：老用户 syncConfigDir=true 时自动启用
+      this.settings.enableDeviceConfigSync = this.settings.syncConfigDir ?? false;
+    }
+
     if (this.settings.onedrive.clientID === "") {
       this.settings.onedrive.clientID = DEFAULT_SETTINGS.onedrive.clientID;
     }
@@ -1194,7 +1200,8 @@ export default class ObsSyncPlugin extends Plugin {
                   this.app.vault.configDir,
                   this.manifest.id,
                   undefined,
-                  this.settings.deleteToWhere ?? "system"
+                  this.settings.deleteToWhere ?? "system",
+                  this.settings.enableDeviceConfigSync ?? false
                 );
                 const s = await fsLocal.stat(filePath);
                 new Notice(JSON.stringify(s, null, 2), 10000);

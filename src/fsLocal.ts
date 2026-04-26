@@ -10,6 +10,7 @@ export class FakeFsLocal extends FakeFs {
   vault: Vault;
   syncConfigDir: boolean;
   syncBookmarks: boolean;
+  enableDeviceConfigSync: boolean;
   configDir: string;
   pluginID: string;
   profiler: Profiler | undefined;
@@ -22,13 +23,15 @@ export class FakeFsLocal extends FakeFs {
     configDir: string,
     pluginID: string,
     profiler: Profiler | undefined,
-    deleteToWhere: "obsidian" | "system"
+    deleteToWhere: "obsidian" | "system",
+    enableDeviceConfigSync: boolean = false
   ) {
     super();
 
     this.vault = vault;
     this.syncConfigDir = syncConfigDir;
     this.syncBookmarks = syncBookmarks;
+    this.enableDeviceConfigSync = enableDeviceConfigSync;
     this.configDir = configDir;
     this.pluginID = pluginID;
     this.profiler = profiler;
@@ -99,9 +102,9 @@ export class FakeFsLocal extends FakeFs {
 
     this.profiler?.insert("finish transforming walk for local");
 
-    if (this.syncConfigDir || this.syncBookmarks) {
-      this.profiler?.insert("into syncConfigDir or syncBookmarks");
-      const bookmarksOnly = !this.syncConfigDir;
+    if (this.enableDeviceConfigSync || this.syncConfigDir || this.syncBookmarks) {
+      this.profiler?.insert("into syncConfigDir or syncBookmarks or enableDeviceConfigSync");
+      const bookmarksOnly = !this.enableDeviceConfigSync && !this.syncConfigDir && this.syncBookmarks;
       const syncFiles = await listFilesInObsFolder(
         this.configDir,
         this.vault,

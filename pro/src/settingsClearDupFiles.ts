@@ -78,7 +78,8 @@ export const generateClearDupFilesSettingsPart = (
           app.vault.configDir,
           plugin.manifest.id,
           undefined,
-          plugin.settings.deleteToWhere ?? "system"
+          plugin.settings.deleteToWhere ?? "system",
+          plugin.settings.enableDeviceConfigSync ?? false
         );
 
         const files = await getDupFiles(fsLocal);

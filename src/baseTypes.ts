@@ -131,6 +131,11 @@ export interface ObsSyncPluginSettings {
    */
   howToCleanEmptyFolder?: EmptyFolderCleanType;
 
+  /** @deprecated 使用 enableDeviceConfigSync 替代 */
+  syncConfigDir?: boolean;
+  /** @deprecated bookmarks 类别已在设备配置档案中 */
+  syncBookmarks?: boolean;
+
   /** 启用设备级配置同步模式 */
   enableDeviceConfigSync?: boolean;
   /** 设备配置档案，key 为 deviceId */
