@@ -493,7 +493,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(onedriveAuthDiv)
       .setName(t("settings_onedrive_auth"))
-      .setDesc(t("settings_onedrive_auth_desc"))
       .addButton(async (button) => {
         button.setButtonText(t("settings_onedrive_auth_button"));
         button.onClick(async () => {
@@ -562,7 +561,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(onedriveDiv)
       .setName(t("settings_checkonnectivity"))
-      .setDesc(t("settings_checkonnectivity_desc"))
       .addButton(async (button) => {
         button.setButtonText(t("settings_checkonnectivity_button"));
         button.onClick(async () => {
@@ -625,7 +623,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(webdavDiv)
       .setName(t("settings_webdav_addr"))
-      .setDesc(t("settings_webdav_addr_desc"))
       .addText((text) =>
         text
           .setPlaceholder("")
@@ -649,7 +646,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(webdavDiv)
       .setName(t("settings_webdav_user"))
-      .setDesc(t("settings_webdav_user_desc"))
       .addText((text) => {
         wrapTextWithPasswordHide(text);
         text
@@ -672,7 +668,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(webdavDiv)
       .setName(t("settings_webdav_password"))
-      .setDesc(t("settings_webdav_password_desc"))
       .addText((text) => {
         wrapTextWithPasswordHide(text);
         text
@@ -787,7 +782,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(webdavDiv)
       .setName(t("settings_checkonnectivity"))
-      .setDesc(t("settings_checkonnectivity_desc"))
       .addButton(async (button) => {
         button.setButtonText(t("settings_checkonnectivity_button"));
         button.onClick(async () => {
@@ -1386,7 +1380,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(syncConfigDiv)
       .setName(t("settings_syncunderscore"))
-      .setDesc(t("settings_syncunderscore_desc"))
       .addDropdown(async (dropdown) => {
         dropdown.addOption("enable", t("enable"));
         dropdown.addOption("disable", t("disable"));
@@ -1403,7 +1396,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(syncConfigDiv)
       .setName(t("settings_enablestatusbar_info"))
-      .setDesc(t("settings_enablestatusbar_info_desc"))
       .addToggle((toggle) => {
         toggle
           .setValue(this.plugin.settings.enableStatusBarInfo ?? false)
@@ -1416,7 +1408,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(syncConfigDiv)
       .setName(t("settings_resetstatusbar_time"))
-      .setDesc(t("settings_resetstatusbar_time_desc"))
       .addButton((button) => {
         button.setButtonText(t("settings_resetstatusbar_button"));
         button.onClick(async () => {
@@ -1844,7 +1835,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(debugDiv)
       .setName(t("settings_delsyncplans"))
-      .setDesc(t("settings_delsyncplans_desc"))
       .addButton(async (button) => {
         button.setButtonText(t("settings_delsyncplans_button"));
         button.onClick(async () => {
@@ -1884,7 +1874,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(debugDiv)
       .setName(t("settings_profiler_enableprofiler"))
-      .setDesc(t("settings_profiler_enableprofiler_desc"))
       .addDropdown((dropdown) => {
         dropdown.addOption("enable", t("enable"));
         dropdown.addOption("disable", t("disable"));
@@ -1903,7 +1892,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(debugDiv)
       .setName(t("settings_profiler_enabledebugprint"))
-      .setDesc(t("settings_profiler_enabledebugprint_desc"))
       .addDropdown((dropdown) => {
         dropdown.addOption("enable", t("enable"));
         dropdown.addOption("disable", t("disable"));
@@ -1922,7 +1910,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     new Setting(debugDiv)
       .setName(t("settings_profiler_recordsize"))
-      .setDesc(t("settings_profiler_recordsize_desc"))
       .addDropdown((dropdown) => {
         dropdown.addOption("enable", t("enable"));
         dropdown.addOption("disable", t("disable"));

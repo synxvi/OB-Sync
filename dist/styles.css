@@ -303,7 +303,7 @@
   padding: 14px 20px;
   background: var(--background-primary);
   border-bottom: 1px solid var(--background-modifier-border);
-  font-size: 1.05em;
+  font-size: 1.2em;
 }
 
 .obsync-section > h2::before {
@@ -378,7 +378,7 @@ details.obsync-collapsible > summary {
   padding: 14px 20px;
   cursor: pointer;
   background: var(--background-primary);
-  font-size: 1.05em;
+  font-size: 1.2em;
   font-weight: 600;
   list-style: none;
   -webkit-user-select: none;
