@@ -303,7 +303,9 @@
   padding: 14px 20px;
   background: var(--background-primary);
   border-bottom: 1px solid var(--background-modifier-border);
-  font-size: 1.2em;
+  font-size: 1.3em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .obsync-section > h2::before {
@@ -362,6 +364,17 @@
   border-top: 1px solid var(--background-modifier-border);
 }
 
+/* 设置项名称加粗，描述缩小，建立主次层级 */
+.obsync-settings .setting-item-name {
+  font-weight: 600;
+  font-size: 0.95em;
+}
+
+.obsync-settings .setting-item-description {
+  font-size: 0.82em;
+  line-height: 1.4;
+}
+
 /* 折叠面板（details/summary） */
 details.obsync-collapsible {
   border: 1px solid var(--background-modifier-border);
@@ -378,8 +391,8 @@ details.obsync-collapsible > summary {
   padding: 14px 20px;
   cursor: pointer;
   background: var(--background-primary);
-  font-size: 1.2em;
-  font-weight: 600;
+  font-size: 1.3em;
+  font-weight: 700;
   list-style: none;
   -webkit-user-select: none;
   user-select: none;
