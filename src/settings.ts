@@ -1363,18 +1363,16 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     new Setting(syncConfigDiv)
       .setName(t("settings_concurrency"))
       .setDesc(t("settings_concurrency_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("1", "1");
-        dropdown.addOption("3", "3");
-        dropdown.addOption("5", "5");
-        dropdown.addOption("10", "10");
-        dropdown.addOption("20", "20");
-
-        dropdown
+      .addText((text) => {
+        text
+          .setPlaceholder("5")
           .setValue(`${this.plugin.settings.concurrency ?? 5}`)
           .onChange(async (val: string) => {
-            this.plugin.settings.concurrency = Number.parseInt(val);
-            await this.plugin.saveSettings();
+            const num = Number.parseInt(val);
+            if (!Number.isNaN(num) && num >= 1 && num <= 20) {
+              this.plugin.settings.concurrency = num;
+              await this.plugin.saveSettings();
+            }
           });
       });
 

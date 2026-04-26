@@ -4,6 +4,7 @@ import type { Vault } from "obsidian";
 import emojiRegex from "emoji-regex";
 import { base32 } from "rfc4648";
 import XRegExp from "xregexp";
+import { CONFIG_MGMT_DIR } from "./baseTypes";
 
 declare global {
   interface Window {
@@ -463,6 +464,7 @@ export const isSpecialFolderNameToSkip = (
     "Desktop.ini",
     "thumbs.db",
     "Thumbs.db",
+    CONFIG_MGMT_DIR,
   ].concat(more !== undefined ? more : []);
   for (const iterator of specialFolders) {
     if (
