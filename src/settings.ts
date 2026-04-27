@@ -928,7 +928,10 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
       for (const snapshot of this.pulledSnapshots) {
         const itemDiv = container.createDiv({ cls: "config-mgmt-device-item" });
-        const savedTime = new Date(snapshot.savedAt).toLocaleString();
+        const savedTime = ((d: Date) => {
+          const pad = (n: number) => String(n).padStart(2, "0");
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        })(new Date(snapshot.savedAt));
 
         new Setting(itemDiv)
           .setName(
