@@ -16,7 +16,11 @@ import {
   setIcon,
 } from "obsidian";
 import { syncer } from "../pro/src/sync";
-import type { ObsSyncPluginSettings, SyncTriggerSourceType } from "./baseTypes";
+import type {
+  DeviceConfigProfile,
+  ObsSyncPluginSettings,
+  SyncTriggerSourceType,
+} from "./baseTypes";
 import {
   COMMAND_CALLBACK,
   COMMAND_CALLBACK_ONEDRIVE,
@@ -1048,24 +1052,42 @@ export default class ObsSyncPlugin extends Plugin {
     // 初始化设备 ID（持久化在 IndexedDB，不同步到远程）
     this.deviceId = await getOrCreateDeviceId(db);
 
-    // 从 IndexedDB 恢复设备名到 settings，防止 data.json 被同步覆盖后丢失
+    // 从 IndexedDB 恢复设备名到 settings，防止 data.json 被同步覆盖后丢失。
+    // 同时确保当前设备 profile 在冷启动后始终存在，供同步策略和远程快照使用。
     const savedDeviceName = await getDeviceName(db);
-    if (savedDeviceName !== null) {
-      if (!this.settings.deviceProfiles) {
-        this.settings.deviceProfiles = {};
-      }
-      const profile = this.settings.deviceProfiles[this.deviceId];
-      if (!profile || profile.deviceName !== savedDeviceName) {
-        this.settings.deviceProfiles[this.deviceId] = {
-          deviceId: this.deviceId,
-          deviceName: savedDeviceName,
-          platform: Platform.isMobile ? "mobile" : "desktop",
-          registeredAt: profile?.registeredAt ?? Date.now(),
-          categorySyncModes: profile?.categorySyncModes ?? {},
-          pullOnlyPlugins: profile?.pullOnlyPlugins ?? [],
-          skipPlugins: profile?.skipPlugins ?? [],
-        };
-      }
+    if (!this.settings.deviceProfiles) {
+      this.settings.deviceProfiles = {};
+    }
+    const profile = this.settings.deviceProfiles[this.deviceId] as
+      | Partial<DeviceConfigProfile>
+      | undefined;
+    const normalizedProfile: DeviceConfigProfile = {
+      deviceId: this.deviceId,
+      deviceName:
+        savedDeviceName ??
+        profile?.deviceName ??
+        (Platform.isMobile ? "Mobile" : "Desktop"),
+      platform: Platform.isMobile ? "mobile" : "desktop",
+      registeredAt: profile?.registeredAt ?? Date.now(),
+      categorySyncModes: profile?.categorySyncModes ?? {},
+      pullOnlyPlugins: profile?.pullOnlyPlugins ?? [],
+      skipPlugins: profile?.skipPlugins ?? [],
+    };
+    const needsProfileSave =
+      profile === undefined ||
+      profile.deviceId !== normalizedProfile.deviceId ||
+      profile.deviceName !== normalizedProfile.deviceName ||
+      profile.platform !== normalizedProfile.platform ||
+      profile.registeredAt !== normalizedProfile.registeredAt ||
+      JSON.stringify(profile.categorySyncModes ?? {}) !==
+        JSON.stringify(normalizedProfile.categorySyncModes) ||
+      JSON.stringify(profile.pullOnlyPlugins ?? []) !==
+        JSON.stringify(normalizedProfile.pullOnlyPlugins) ||
+      JSON.stringify(profile.skipPlugins ?? []) !==
+        JSON.stringify(normalizedProfile.skipPlugins);
+    if (needsProfileSave) {
+      this.settings.deviceProfiles[this.deviceId] = normalizedProfile;
+      await this.saveSettings();
     }
   }
 

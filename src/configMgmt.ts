@@ -140,12 +140,15 @@ export const applySnapshotToLocal = (
     encryptionMethod: currentSettings.encryptionMethod,
   };
 
-  // 合并 deviceProfiles：当前设备的 profile 保持不变，导入其他设备的
+  // 合并 deviceProfiles：优先使用快照中的配置；如果快照缺少当前设备，
+  // 再保留本地当前设备 profile，避免应用旧快照时丢失本机身份。
   const mergedProfiles: Record<string, DeviceConfigProfile> = {
     ...(snapshot.deviceProfiles ?? {}),
   };
-  // 保留当前设备的本地 profile
-  if (currentSettings.deviceProfiles?.[currentDeviceId]) {
+  if (
+    mergedProfiles[currentDeviceId] === undefined &&
+    currentSettings.deviceProfiles?.[currentDeviceId]
+  ) {
     mergedProfiles[currentDeviceId] =
       currentSettings.deviceProfiles[currentDeviceId];
   }
