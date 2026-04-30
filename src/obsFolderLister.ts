@@ -16,8 +16,8 @@ const isPluginDirItself = (x: string, pluginId: string) => {
 };
 
 const isLikelyPluginSubFiles = (x: string) => {
+  // data.json 不纳入同步，防止同步引擎覆盖插件设置（设置同步应走配置管理功能）
   const reqFiles = [
-    "data.json",
     "main.js",
     "manifest.json",
     ".gitignore",

@@ -437,7 +437,11 @@
 
   "menu_check_file_stat": "查看文件属性",
 
-  "settings_sync_config_title": "同步与配置",
+  "settings_sync_config_title": "设备与自动化",
+  "settings_tab_connection": "连接配置",
+  "settings_tab_sync_strategy": "同步策略",
+  "settings_tab_device_automation": "设备与自动化",
+  "settings_tab_toolbox": "工具箱",
   "settings_remote_devices": "远程设备列表",
   "settings_quick_actions": "快速操作",
   "settings_device_info": "本设备信息",

@@ -438,7 +438,11 @@
 
   "menu_check_file_stat": "Check file stats",
 
-  "settings_sync_config_title": "Sync & Config",
+  "settings_sync_config_title": "Device & Automation",
+  "settings_tab_connection": "Connection",
+  "settings_tab_sync_strategy": "Sync Strategy",
+  "settings_tab_device_automation": "Device & Automation",
+  "settings_tab_toolbox": "Toolbox",
   "settings_remote_devices": "Remote Devices",
   "settings_quick_actions": "Quick Actions",
   "settings_device_info": "Device Info",

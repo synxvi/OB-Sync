@@ -44,6 +44,7 @@ import {
   getAuthUrlAndVerifier as getAuthUrlAndVerifierOnedrive,
 } from "./fsOnedrive";
 import type { TransItemType } from "./i18n";
+import { setDeviceName } from "./localdb";
 import {
   exportQrCodeUri,
   importQrCodeUri,
@@ -422,17 +423,57 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     });
 
     //////////////////////////////////////////////////
-    // below for service chooser (part 1/2)
+    // Tab 容器（参考 floating-toc 插件设计）
     //////////////////////////////////////////////////
 
-    // we need to create the div in advance of any other service divs
-    const serviceChooserDiv = containerEl.createDiv({ cls: "obsync-section" });
+    const tabContainer = containerEl.createDiv({ cls: "obsync-tabs" });
+    const tabHeader = tabContainer.createDiv({ cls: "obsync-tab-header" });
+    const tabContent = tabContainer.createDiv({ cls: "obsync-tab-content" });
+
+    const tabNames = [
+      "🔗" + t("settings_tab_connection"),
+      "⚡" + t("settings_tab_sync_strategy"),
+      "📱" + t("settings_tab_device_automation"),
+      "🛠️" + t("settings_tab_toolbox"),
+    ];
+    const panes: HTMLDivElement[] = [];
+    const tabEls: HTMLDivElement[] = [];
+
+    for (const name of tabNames) {
+      const tabEl = tabHeader.createDiv({ cls: "obsync-tab", text: name });
+      const pane = tabContent.createDiv({ cls: "obsync-tab-pane" });
+      tabEls.push(tabEl);
+      panes.push(pane);
+
+      tabEl.addEventListener("click", () => {
+        for (const el of tabEls) el.removeClass("active");
+        for (const p of panes) p.removeClass("active");
+        tabEl.addClass("active");
+        pane.addClass("active");
+      });
+    }
+
+    // 默认激活第一个 Tab
+    tabEls[0].addClass("active");
+    panes[0].addClass("active");
+
+    // pane1: 连接配置, pane2: 同步策略, pane3: 设备与自动化, pane4: 工具箱
+    const connectionPane = panes[0];
+    const syncStrategyPane = panes[1];
+    const deviceAutomationPane = panes[2];
+    const toolboxPane = panes[3];
+
+    //////////////////////////////////////////////////
+    // Tab 1: 连接配置 — 服务选择器
+    //////////////////////////////////////////////////
+
+    const serviceChooserDiv = connectionPane.createDiv({ cls: "obsync-section" });
     serviceChooserDiv.createEl("h2", { text: t("settings_chooseservice") });
 
     // below for onedrive
     //////////////////////////////////////////////////
 
-    const onedriveDiv = containerEl.createEl("div", { cls: "onedrive-hide obsync-section" });
+    const onedriveDiv = connectionPane.createEl("div", { cls: "onedrive-hide obsync-section" });
     onedriveDiv.toggleClass(
       "onedrive-hide",
       this.plugin.settings.serviceType !== "onedrive"
@@ -587,7 +628,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     // below for webdav
     //////////////////////////////////////////////////
 
-    const webdavDiv = containerEl.createEl("div", { cls: "webdav-hide obsync-section" });
+    const webdavDiv = connectionPane.createEl("div", { cls: "webdav-hide obsync-section" });
     webdavDiv.toggleClass(
       "webdav-hide",
       this.plugin.settings.serviceType !== "webdav"
@@ -837,10 +878,10 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
     //////////////////////////////////////////////////
-    // 同步与配置（合并原"同步设置" + "配置管理"）
+    // Tab 3: 设备与自动化 — 远程设备列表
     //////////////////////////////////////////////////
 
-    const syncConfigDiv = containerEl.createEl("div", { cls: "obsync-section" });
+    const syncConfigDiv = deviceAutomationPane.createEl("div", { cls: "obsync-section" });
     syncConfigDiv.createEl("h2", { text: t("settings_sync_config_title") });
 
     // ===== 远程设备列表 =====
@@ -1063,6 +1104,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
                 deviceName: val,
               };
               await this.plugin.saveSettings();
+              await setDeviceName(this.plugin.db, val);
             });
         });
     }
@@ -1153,10 +1195,17 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
 
-    // ===== 文件同步策略 =====
-    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_file_sync_strategy") });
+    //////////////////////////////////////////////////
+    // Tab 2: 同步策略
+    //////////////////////////////////////////////////
 
-    new Setting(syncConfigDiv)
+    const syncStrategyDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
+    syncStrategyDiv.createEl("h2", { text: t("settings_file_sync_strategy") });
+
+    // ===== 文件同步策略 =====
+    syncStrategyDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_file_sync_strategy") });
+
+    new Setting(syncStrategyDiv)
       .setName(t("setting_syncdirection"))
       .setDesc(stringToFragment(t("setting_syncdirection_desc")))
       .addDropdown((dropdown) => {
@@ -1198,7 +1247,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
         "settings_conflictaction_smart_conflict_desc"
       );
     }
-    const conflictActionSetting = new Setting(syncConfigDiv)
+    const conflictActionSetting = new Setting(syncStrategyDiv)
       .setName(t("settings_conflictaction"))
       .setDesc(stringToFragment(conflictActionSettingOrigDesc));
     conflictActionSetting.addDropdown((dropdown) => {
@@ -1229,7 +1278,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
         });
     });
 
-    new Setting(syncConfigDiv)
+    new Setting(syncStrategyDiv)
       .setName(t("settings_deletetowhere"))
       .setDesc(t("settings_deletetowhere_desc"))
       .addDropdown((dropdown) => {
@@ -1251,11 +1300,11 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
 
-    const percentage1 = new Setting(syncConfigDiv)
+    const percentage1 = new Setting(syncStrategyDiv)
       .setName(t("settings_protectmodifypercentage"))
       .setDesc(t("settings_protectmodifypercentage_desc"));
 
-    const percentage2 = new Setting(syncConfigDiv)
+    const percentage2 = new Setting(syncStrategyDiv)
       .setName(t("settings_protectmodifypercentage_customfield"))
       .setDesc(t("settings_protectmodifypercentage_customfield_desc"));
     if ((this.plugin.settings.protectModifyPercentage ?? 50) % 10 === 0) {
@@ -1324,13 +1373,13 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     });
 
     generateClearDupFilesSettingsPart(
-      syncConfigDiv,
+      syncStrategyDiv,
       t,
       this.app,
       this.plugin
     );
 
-    new Setting(syncConfigDiv)
+    new Setting(syncStrategyDiv)
       .setName(t("settings_skiplargefiles"))
       .setDesc(t("settings_skiplargefiles_desc"))
       .addDropdown((dropdown) => {
@@ -1359,7 +1408,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(syncConfigDiv)
+    new Setting(syncStrategyDiv)
       .setName(t("settings_concurrency"))
       .setDesc(t("settings_concurrency_desc"))
       .addText((text) => {
@@ -1375,7 +1424,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(syncConfigDiv)
+    new Setting(syncStrategyDiv)
       .setName(t("settings_syncunderscore"))
       .addDropdown(async (dropdown) => {
         dropdown.addOption("enable", t("enable"));
@@ -1463,9 +1512,9 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       });
 
     // ===== 过滤规则 =====
-    syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_filter_rules") });
+    syncStrategyDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_filter_rules") });
 
-    new Setting(syncConfigDiv)
+    new Setting(syncStrategyDiv)
       .setName(t("settings_ignorepaths"))
       .setDesc(t("settings_ignorepaths_desc"))
       .setClass("ignorepaths-settings")
@@ -1484,7 +1533,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
         textArea.inputEl.addClass("ignorepaths-textarea");
       });
 
-    new Setting(syncConfigDiv)
+    new Setting(syncStrategyDiv)
       .setName(t("settings_onlyallowpaths"))
       .setDesc(t("settings_onlyallowpaths_desc"))
       .setClass("onlyallowpaths-settings")
@@ -1614,19 +1663,12 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       }
     }
 
-    // below for import and export functions
+    //////////////////////////////////////////////////
+    // Tab 4: 工具箱 — 导入导出
     //////////////////////////////////////////////////
 
-    // import and export
-    const importExportDetails = containerEl.createEl("details", {
-      cls: "obsync-collapsible",
-    });
-    importExportDetails.createEl("summary", {
-      text: t("settings_importexport"),
-    });
-    const importExportDiv = importExportDetails.createEl("div", {
-      cls: "obsync-collapsible-body",
-    });
+    const importExportDiv = toolboxPane.createEl("div", { cls: "obsync-section" });
+    importExportDiv.createEl("h2", { text: t("settings_importexport") });
 
     const importExportDivSetting1 = new Setting(importExportDiv)
       .setName(t("settings_export"))
@@ -1707,16 +1749,12 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       });
 
     //////////////////////////////////////////////////
-    // below for debug
+    // Tab 4: 工具箱 — 调试
     //////////////////////////////////////////////////
 
-    const debugDetails = containerEl.createEl("details", {
-      cls: "obsync-collapsible",
-    });
-    debugDetails.createEl("summary", { text: t("settings_debug") });
-    const debugDiv = debugDetails.createEl("div", {
-      cls: "obsync-collapsible-body",
-    });
+    const debugSection = toolboxPane.createEl("div", { cls: "obsync-section" });
+    debugSection.createEl("h2", { text: t("settings_debug") });
+    const debugDiv = debugSection.createEl("div");
 
     new Setting(debugDiv)
       .setName(t("settings_debuglevel"))

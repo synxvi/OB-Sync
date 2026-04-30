@@ -575,6 +575,19 @@ export const getOrCreateDeviceId = async (db: InternalDBs): Promise<string> => {
   return newId;
 };
 
+/** 从 IndexedDB 读取设备名（独立于 data.json，防止同步覆盖丢失） */
+export const getDeviceName = async (db: InternalDBs): Promise<string | null> => {
+  return (await db.simpleKVForMiscTbl.getItem("deviceName")) as string | null;
+};
+
+/** 将设备名持久化到 IndexedDB */
+export const setDeviceName = async (
+  db: InternalDBs,
+  name: string
+): Promise<void> => {
+  await db.simpleKVForMiscTbl.setItem("deviceName", name);
+};
+
 export const insertProfilerResultByVault = async (
   db: InternalDBs,
   profilerStr: string,

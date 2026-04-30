@@ -44,6 +44,7 @@ import {
   getLastFailedSyncTimeByVault,
   getLastSuccessSyncTimeByVault,
   getOrCreateDeviceId,
+  getDeviceName,
   prepareDBs,
   upsertLastFailedSyncTimeByVault,
   upsertLastSuccessSyncTimeByVault,
@@ -1046,6 +1047,26 @@ export default class ObsSyncPlugin extends Plugin {
 
     // 初始化设备 ID（持久化在 IndexedDB，不同步到远程）
     this.deviceId = await getOrCreateDeviceId(db);
+
+    // 从 IndexedDB 恢复设备名到 settings，防止 data.json 被同步覆盖后丢失
+    const savedDeviceName = await getDeviceName(db);
+    if (savedDeviceName !== null) {
+      if (!this.settings.deviceProfiles) {
+        this.settings.deviceProfiles = {};
+      }
+      const profile = this.settings.deviceProfiles[this.deviceId];
+      if (!profile || profile.deviceName !== savedDeviceName) {
+        this.settings.deviceProfiles[this.deviceId] = {
+          deviceId: this.deviceId,
+          deviceName: savedDeviceName,
+          platform: Platform.isMobile ? "mobile" : "desktop",
+          registeredAt: profile?.registeredAt ?? Date.now(),
+          categorySyncModes: profile?.categorySyncModes ?? {},
+          pullOnlyPlugins: profile?.pullOnlyPlugins ?? [],
+          skipPlugins: profile?.skipPlugins ?? [],
+        };
+      }
+    }
   }
 
   enableAutoSyncIfSet() {
