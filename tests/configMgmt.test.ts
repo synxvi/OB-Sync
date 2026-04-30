@@ -42,7 +42,7 @@ const makeSnapshot = (
   savedAt: 1,
   savedByDeviceId: "remote-device",
   savedByDeviceName: "Remote Device",
-  pluginVersion: "1.5.1",
+  pluginVersion: "1.5.2",
   pluginSettings: {},
   deviceProfiles: {},
   ...overrides,

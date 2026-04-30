@@ -441,7 +441,8 @@ export default class ObsSyncPlugin extends Plugin {
       callbackSyncProcess,
       Platform.isMobile,
       this.settings.enableDeviceConfigSync ?? false,
-      this.settings.deviceProfiles?.[this.deviceId]
+      this.settings.deviceProfiles?.[this.deviceId],
+      this.manifest.id
     );
 
     fsEncrypt.closeResources();

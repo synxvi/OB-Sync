@@ -39,6 +39,7 @@ import {
   unixTimeToStr,
 } from "../../src/misc";
 import type { Profiler } from "../../src/profiler";
+import { isSelfPluginSyncSkippedPath } from "../../src/selfPluginSyncFilter";
 import { checkProRunnableAndFixInplace } from "./account";
 import { isMergable, mergeFile, tryDuplicateFile } from "./conflictLogic";
 import {
@@ -142,13 +143,20 @@ export const checkIsSkipItemOrNotByName = (
   ignorePaths: string[],
   onlyAllowPaths: string[],
   enableDeviceConfigSync?: boolean,
-  deviceConfigProfile?: DeviceConfigProfile
+  deviceConfigProfile?: DeviceConfigProfile,
+  pluginId?: string
 ): IsSkipResult => {
   if (key === undefined) {
     throw Error(`checkIsSkipItemOrNotByName meets undefinded key!`);
   }
 
   let finalIsIgnored: boolean | undefined = undefined;
+  let isExplictlyIgnored = false;
+
+  if (isSelfPluginSyncSkippedPath(key, configDir, pluginId)) {
+    isExplictlyIgnored = true;
+    finalIsIgnored = true;
+  }
 
   let enableAllowMode = false;
   let isExplictlyAllowed = false;
@@ -175,7 +183,6 @@ export const checkIsSkipItemOrNotByName = (
     finalIsIgnored = true; // must be skippable
   }
 
-  let isExplictlyIgnored = false;
   if (ignorePaths !== undefined && ignorePaths.length > 0) {
     for (const r of ignorePaths) {
       if (r.trim() === "") {
@@ -372,7 +379,8 @@ const ensembleMixedEnties = async (
   profiler: Profiler | undefined,
 
   enableDeviceConfigSync?: boolean,
-  deviceConfigProfile?: DeviceConfigProfile
+  deviceConfigProfile?: DeviceConfigProfile,
+  pluginId?: string
 ): Promise<SyncPlanType> => {
   profiler?.addIndent();
   profiler?.insert("ensembleMixedEnties: enter");
@@ -402,7 +410,8 @@ const ensembleMixedEnties = async (
       ignorePaths,
       onlyAllowPaths,
       enableDeviceConfigSync,
-      deviceConfigProfile
+      deviceConfigProfile,
+      pluginId
     );
     skipOrNotResults[key] = skipOrNot;
     if (skipOrNot.finalIsIgnored && !key.startsWith(configDir)) {
@@ -454,7 +463,8 @@ const ensembleMixedEnties = async (
           ignorePaths,
           onlyAllowPaths,
           enableDeviceConfigSync,
-          deviceConfigProfile
+          deviceConfigProfile,
+          pluginId
         );
         skipOrNotResults[key] = skipOrNot;
       }
@@ -493,7 +503,8 @@ const ensembleMixedEnties = async (
         ignorePaths,
         onlyAllowPaths,
         enableDeviceConfigSync,
-        deviceConfigProfile
+        deviceConfigProfile,
+        pluginId
       );
       skipOrNotResults[key] = skipOrNot;
     }
@@ -2032,7 +2043,8 @@ export async function syncer(
   callbackSyncProcess?: any,
   isMobile?: boolean,
   enableDeviceConfigSync?: boolean,
-  deviceConfigProfile?: DeviceConfigProfile
+  deviceConfigProfile?: DeviceConfigProfile,
+  pluginId?: string
 ) {
   console.info(`starting sync.`);
   markIsSyncingFunc(true);
@@ -2118,7 +2130,8 @@ export async function syncer(
       settings.serviceType,
       profiler,
       enableDeviceConfigSync,
-      deviceConfigProfile
+      deviceConfigProfile,
+      pluginId
     );
     profiler?.insert(`finish step${step} (build partial mixedEntity)`);
 

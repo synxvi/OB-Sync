@@ -5,31 +5,7 @@ import { Queue } from "@fyears/tsqueue";
 import chunk from "lodash/chunk";
 import flatten from "lodash/flatten";
 import { isSpecialFolderNameToSkip, statFix } from "./misc";
-
-const isPluginDirItself = (x: string, pluginId: string) => {
-  return (
-    x === pluginId ||
-    x === `${pluginId}/` ||
-    x.endsWith(`/${pluginId}`) ||
-    x.endsWith(`/${pluginId}/`)
-  );
-};
-
-const isLikelyPluginSubFiles = (x: string) => {
-  // data.json 不纳入同步，防止同步引擎覆盖插件设置（设置同步应走配置管理功能）
-  const reqFiles = [
-    "main.js",
-    "manifest.json",
-    ".gitignore",
-    "styles.css",
-  ];
-  for (const iterator of reqFiles) {
-    if (x === iterator || x.endsWith(`/${iterator}`)) {
-      return true;
-    }
-  }
-  return false;
-};
+import { isSelfPluginSyncSkippedPath } from "./selfPluginSyncFilter";
 
 export const listFilesInObsFolder = async (
   configDir: string,
@@ -90,7 +66,6 @@ export const listFilesInObsFolder = async (
 
       for (const iter of r2) {
         contents.push(iter.itself);
-        const isInsideSelfPlugin = isPluginDirItself(iter.itself.key, pluginId);
         if (iter.children !== undefined) {
           for (const iter2 of iter.children.folders) {
             if (
@@ -98,8 +73,8 @@ export const listFilesInObsFolder = async (
             ) {
               continue;
             }
-            if (isInsideSelfPlugin && !isLikelyPluginSubFiles(iter2)) {
-              // special treatment for ob-sync folder
+            if (isSelfPluginSyncSkippedPath(iter2, configDir, pluginId)) {
+              // Avoid syncing this plugin's runtime settings through file sync.
               continue;
             }
             q.push(iter2);
@@ -110,8 +85,8 @@ export const listFilesInObsFolder = async (
             ) {
               continue;
             }
-            if (isInsideSelfPlugin && !isLikelyPluginSubFiles(iter2)) {
-              // special treatment for ob-sync folder
+            if (isSelfPluginSyncSkippedPath(iter2, configDir, pluginId)) {
+              // Avoid syncing this plugin's runtime settings through file sync.
               continue;
             }
             q.push(iter2);
