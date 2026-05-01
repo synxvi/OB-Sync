@@ -13,7 +13,6 @@ import type {
   ConfigSyncCategory,
   ConfigSyncMode,
   ConflictActionType,
-  DeviceConfigProfile,
   EmptyFolderCleanType,
   QRExportType,
   SUPPORTED_SERVICES_TYPE,
@@ -63,6 +62,11 @@ import {
   checkHasSpecialCharForDir,
   stringToFragment,
 } from "./misc";
+import {
+  cleanPluginOverrides,
+  countPluginOverrides,
+  listInstalledPluginIds,
+} from "./pluginSync";
 import { DEFAULT_PROFILER_CONFIG } from "./profiler";
 
 export class ChangeRemoteBaseDirModal extends Modal {
@@ -1641,15 +1645,16 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
       if (pluginsDataMode !== "skip") {
         try {
-          const communityPluginsStr = await this.plugin.app.vault.adapter.read(
-            ".obsidian/community-plugins.json"
-          );
-          const enabledPluginIds: string[] = JSON.parse(communityPluginsStr);
-          const otherPlugins = enabledPluginIds.filter(
-            (id) => id !== this.plugin.manifest.id
+          const installedPluginIds = await listInstalledPluginIds(
+            this.plugin.app.vault.adapter,
+            this.plugin.app.vault.configDir,
+            this.plugin.manifest.id
           );
 
-          if (otherPlugins.length > 0) {
+          if (
+            installedPluginIds.length > 0 ||
+            countPluginOverrides(this.plugin.settings.deviceProfiles) > 0
+          ) {
             const pluginSyncDiv = deviceAutomationPane.createEl("div", { cls: "obsync-section" });
             pluginSyncDiv.createEl("h2", { text: t("settings_plugin_sync") });
 
@@ -1660,39 +1665,15 @@ export class ObsSyncSettingTab extends PluginSettingTab {
                 btn.setButtonText(t("plugin_sync_force_refresh"));
                 btn.onClick(async () => {
                   try {
-                    const freshStr = await this.plugin.app.vault.adapter.read(
-                      ".obsidian/community-plugins.json"
+                    const freshIds = await listInstalledPluginIds(
+                      this.plugin.app.vault.adapter,
+                      this.plugin.app.vault.configDir,
+                      this.plugin.manifest.id
                     );
-                    const freshIds: string[] = JSON.parse(freshStr);
-                    let cleaned = 0;
-                    if (this.plugin.settings.deviceProfiles) {
-                      for (const [did, profile] of Object.entries(this.plugin.settings.deviceProfiles)) {
-                        const p = profile as DeviceConfigProfile;
-                        const before =
-                          (p.pullOnlyPlugins ?? []).length +
-                          (p.pushOnlyPlugins ?? []).length +
-                          (p.skipPlugins ?? []).length;
-                        const pullOnly = (p.pullOnlyPlugins ?? []).filter(
-                          (id) => freshIds.includes(id)
-                        );
-                        const pushOnly = (p.pushOnlyPlugins ?? []).filter(
-                          (id) => freshIds.includes(id)
-                        );
-                        const skip = (p.skipPlugins ?? []).filter(
-                          (id) => freshIds.includes(id)
-                        );
-                        const after = pullOnly.length + pushOnly.length + skip.length;
-                        if (after !== before) {
-                          this.plugin.settings.deviceProfiles[did] = {
-                            ...p,
-                            pullOnlyPlugins: pullOnly,
-                            pushOnlyPlugins: pushOnly,
-                            skipPlugins: skip,
-                          };
-                          cleaned += before - after;
-                        }
-                      }
-                    }
+                    const cleaned = cleanPluginOverrides(
+                      this.plugin.settings.deviceProfiles,
+                      freshIds
+                    );
                     await this.plugin.saveSettings();
                     new Notice(
                       cleaned > 0
@@ -1706,7 +1687,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
                 });
               });
 
-            for (const pluginId of otherPlugins) {
+            for (const pluginId of installedPluginIds) {
               const isPullOnly = deviceProfile?.pullOnlyPlugins?.includes(pluginId) ?? false;
               const isPushOnly = deviceProfile?.pushOnlyPlugins?.includes(pluginId) ?? false;
               const isSkip = deviceProfile?.skipPlugins?.includes(pluginId) ?? false;
@@ -1753,7 +1734,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             }
           }
         } catch {
-          // community-plugins.json 可能不存在
+          // 插件目录读取失败时不显示逐插件配置。
         }
       }
     }
