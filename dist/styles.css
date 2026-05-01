@@ -491,6 +491,10 @@ details.obsync-collapsible > .obsync-collapsible-body {
   padding: 0 4px;
 }
 
+.obsync-settings .settings-long-desc p {
+  margin: 0.5em 0;
+}
+
 /* 密码隐藏切换按钮 */
 .obsync-settings .setting-item-control > span {
   cursor: pointer;

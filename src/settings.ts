@@ -1471,6 +1471,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           .onChange(async (val) => {
             this.plugin.settings.enableStatusBarInfo = val;
             await this.plugin.saveSettings();
+            await autoSaveToRemote();
             new Notice(t("settings_enablestatusbar_reloadrequired_notice"));
           });
       });
