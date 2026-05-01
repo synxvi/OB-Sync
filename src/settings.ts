@@ -1649,46 +1649,62 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             (id) => id !== this.plugin.manifest.id
           );
 
-          // 清理已删除插件的残留配置（修复脏数据：从所有设备的 profile 中清理）
-          let needSave = false;
-          if (this.plugin.settings.deviceProfiles) {
-            for (const [did, profile] of Object.entries(this.plugin.settings.deviceProfiles)) {
-              const p = profile as DeviceConfigProfile;
-              const pullOnly = (p.pullOnlyPlugins ?? []).filter(
-                (id) => enabledPluginIds.includes(id) || id === this.plugin.manifest.id
-              );
-              const pushOnly = (p.pushOnlyPlugins ?? []).filter(
-                (id) => enabledPluginIds.includes(id) || id === this.plugin.manifest.id
-              );
-              const skip = (p.skipPlugins ?? []).filter(
-                (id) => enabledPluginIds.includes(id) || id === this.plugin.manifest.id
-              );
-              if (
-                pullOnly.length !== (p.pullOnlyPlugins ?? []).length ||
-                pushOnly.length !== (p.pushOnlyPlugins ?? []).length ||
-                skip.length !== (p.skipPlugins ?? []).length
-              ) {
-                this.plugin.settings.deviceProfiles[did] = {
-                  ...p,
-                  pullOnlyPlugins: pullOnly,
-                  pushOnlyPlugins: pushOnly,
-                  skipPlugins: skip,
-                };
-                needSave = true;
-              }
-            }
-          }
-          if (needSave) {
-            await this.plugin.saveSettings();
-          }
-
           if (otherPlugins.length > 0) {
             const pluginSyncDiv = deviceAutomationPane.createEl("div", { cls: "obsync-section" });
             pluginSyncDiv.createEl("h2", { text: t("settings_plugin_sync") });
 
             new Setting(pluginSyncDiv)
               .setName(t("device_config_per_plugin"))
-              .setDesc(t("device_config_per_plugin_desc"));
+              .setDesc(t("device_config_per_plugin_desc"))
+              .addButton((btn) => {
+                btn.setButtonText(t("plugin_sync_force_refresh"));
+                btn.onClick(async () => {
+                  try {
+                    const freshStr = await this.plugin.app.vault.adapter.read(
+                      ".obsidian/community-plugins.json"
+                    );
+                    const freshIds: string[] = JSON.parse(freshStr);
+                    let cleaned = 0;
+                    if (this.plugin.settings.deviceProfiles) {
+                      for (const [did, profile] of Object.entries(this.plugin.settings.deviceProfiles)) {
+                        const p = profile as DeviceConfigProfile;
+                        const before =
+                          (p.pullOnlyPlugins ?? []).length +
+                          (p.pushOnlyPlugins ?? []).length +
+                          (p.skipPlugins ?? []).length;
+                        const pullOnly = (p.pullOnlyPlugins ?? []).filter(
+                          (id) => freshIds.includes(id)
+                        );
+                        const pushOnly = (p.pushOnlyPlugins ?? []).filter(
+                          (id) => freshIds.includes(id)
+                        );
+                        const skip = (p.skipPlugins ?? []).filter(
+                          (id) => freshIds.includes(id)
+                        );
+                        const after = pullOnly.length + pushOnly.length + skip.length;
+                        if (after !== before) {
+                          this.plugin.settings.deviceProfiles[did] = {
+                            ...p,
+                            pullOnlyPlugins: pullOnly,
+                            pushOnlyPlugins: pushOnly,
+                            skipPlugins: skip,
+                          };
+                          cleaned += before - after;
+                        }
+                      }
+                    }
+                    await this.plugin.saveSettings();
+                    new Notice(
+                      cleaned > 0
+                        ? t("plugin_sync_force_refresh_cleaned", { count: `${cleaned}` })
+                        : t("plugin_sync_force_refresh_nochange")
+                    );
+                    this.display();
+                  } catch {
+                    new Notice(t("plugin_sync_force_refresh_fail"));
+                  }
+                });
+              });
 
             for (const pluginId of otherPlugins) {
               const isPullOnly = deviceProfile?.pullOnlyPlugins?.includes(pluginId) ?? false;
