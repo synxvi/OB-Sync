@@ -446,6 +446,7 @@
   "settings_file_sync_strategy": "檔案同步策略",
   "settings_filter_rules": "過濾規則",
   "settings_obsidian_config_sync": "Obsidian 配置同步",
+  "settings_plugin_sync": "外掛同步",
   "settings_enable_device_config_sync": "同步 Obsidian 配置目錄",
   "settings_enable_device_config_sync_desc": "開啟後，外掛將掃描並同步 .obsidian 目錄下的配置檔案（外觀、快捷鍵、外掛資料等）。可透過下方的分類設定精確控制每個類別的同步行為。",
   "settings_save_config": "儲存配置到遠端",
