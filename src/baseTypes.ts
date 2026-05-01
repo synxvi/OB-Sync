@@ -138,6 +138,8 @@ export interface ObsSyncPluginSettings {
 
   /** 启用设备级配置同步模式 */
   enableDeviceConfigSync?: boolean;
+  /** 修改设置时自动保存到远程（连接配置除外） */
+  autoSaveToRemote?: boolean;
   /** 设备配置档案，key 为 deviceId */
   deviceProfiles?: Record<string, DeviceConfigProfile>;
 }

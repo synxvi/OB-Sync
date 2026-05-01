@@ -457,7 +457,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     tabEls[0].addClass("active");
     panes[0].addClass("active");
 
-    // pane1: 连接配置, pane2: 同步策略, pane3: 设备与自动化, pane4: 工具箱
+    // pane1: 连接配置, pane2: 文件同步, pane3: 配置同步, pane4: 工具箱
     const connectionPane = panes[0];
     const syncStrategyPane = panes[1];
     const deviceAutomationPane = panes[2];
@@ -878,12 +878,71 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           });
       });
     //////////////////////////////////////////////////
-    // Tab 3: 设备与自动化
+    // Tab 2: 文件同步
     //////////////////////////////////////////////////
 
-    // ===== 卡片1: 远程配置 =====
-    const remoteConfigDiv = deviceAutomationPane.createEl("div", { cls: "obsync-section" });
+    // 默认启用设备模式，确保 deviceProfile 存在
+    {
+      const deviceId = this.plugin.deviceId;
+      if (!this.plugin.settings.deviceProfiles) {
+        this.plugin.settings.deviceProfiles = {};
+      }
+      if (!this.plugin.settings.deviceProfiles[deviceId]) {
+        this.plugin.settings.deviceProfiles[deviceId] = {
+          deviceId,
+          deviceName: Platform.isMobile
+            ? t("device_config_default_name_mobile")
+            : t("device_config_default_name_desktop"),
+          platform: Platform.isMobile ? "mobile" : "desktop",
+          registeredAt: Date.now(),
+          categorySyncModes: {},
+          pullOnlyPlugins: [],
+          pushOnlyPlugins: [],
+          skipPlugins: [],
+        };
+      }
+    }
+
+    // 自动保存到远程的辅助方法
+    const autoSaveToRemote = async () => {
+      if (!this.plugin.settings.autoSaveToRemote) return;
+      if (!this.plugin.settings.serviceType) return;
+      try {
+        const client = getClient(
+          this.plugin.settings,
+          this.app.vault.getName(),
+          () => this.plugin.saveSettings()
+        );
+        const deviceId = this.plugin.deviceId;
+        const deviceProfile = this.plugin.settings.deviceProfiles?.[deviceId];
+        const deviceName = deviceProfile?.deviceName ?? (Platform.isMobile ? "Mobile" : "Desktop");
+        const snapshot = buildConfigSnapshot(
+          this.plugin.settings,
+          deviceId,
+          deviceName,
+          this.plugin.manifest.version
+        );
+        await saveConfigToRemote(client, snapshot, deviceId);
+      } catch {
+        // 自动保存失败时静默处理
+      }
+    };
+
+    // ===== 卡片1: 远程设备列表 =====
+    const remoteConfigDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
     remoteConfigDiv.createEl("h2", { text: t("settings_remote_devices") });
+
+    new Setting(remoteConfigDiv)
+      .setName(t("settings_auto_save_to_remote"))
+      .setDesc(t("settings_auto_save_to_remote_desc"))
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.autoSaveToRemote ?? false)
+          .onChange(async (val) => {
+            this.plugin.settings.autoSaveToRemote = val;
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(remoteConfigDiv)
       .setName(t("config_mgmt_pull"))
@@ -950,7 +1009,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
         });
       });
 
-    // 设备列表容器
     const deviceListContainer = remoteConfigDiv.createDiv();
     const renderDeviceList = (container: HTMLElement, t: (x: any, vars?: any) => string) => {
       const existingItems = container.querySelectorAll(".config-mgmt-device-item");
@@ -1035,31 +1093,256 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     this.renderDeviceList = renderDeviceList;
     renderDeviceList(deviceListContainer, t);
 
-    // ===== 卡片2: 自动化策略 =====
-    const automationDiv = deviceAutomationPane.createEl("div", { cls: "obsync-section" });
-    automationDiv.createEl("h2", { text: t("settings_automation") });
+    // ===== 卡片2: 文件同步策略 =====
+    const syncStrategyDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
+    syncStrategyDiv.createEl("h2", { text: t("settings_file_sync_strategy") });
 
-    // 默认启用设备模式，确保 deviceProfile 存在
-    {
-      const deviceId = this.plugin.deviceId;
-      if (!this.plugin.settings.deviceProfiles) {
-        this.plugin.settings.deviceProfiles = {};
-      }
-      if (!this.plugin.settings.deviceProfiles[deviceId]) {
-        this.plugin.settings.deviceProfiles[deviceId] = {
-          deviceId,
-          deviceName: Platform.isMobile
-            ? t("device_config_default_name_mobile")
-            : t("device_config_default_name_desktop"),
-          platform: Platform.isMobile ? "mobile" : "desktop",
-          registeredAt: Date.now(),
-          categorySyncModes: {},
-          pullOnlyPlugins: [],
-          pushOnlyPlugins: [],
-          skipPlugins: [],
-        };
-      }
+    new Setting(syncStrategyDiv)
+      .setName(t("setting_syncdirection"))
+      .setDesc(stringToFragment(t("setting_syncdirection_desc")))
+      .addDropdown((dropdown) => {
+        dropdown.addOption(
+          "bidirectional",
+          t("setting_syncdirection_bidirectional_desc")
+        );
+        dropdown.addOption(
+          "incremental_push_only",
+          t("setting_syncdirection_incremental_push_only_desc")
+        );
+        dropdown.addOption(
+          "incremental_pull_only",
+          t("setting_syncdirection_incremental_pull_only_desc")
+        );
+        dropdown.addOption(
+          "incremental_push_and_delete_only",
+          t("setting_syncdirection_incremental_push_and_delete_only_desc")
+        );
+        dropdown.addOption(
+          "incremental_pull_and_delete_only",
+          t("setting_syncdirection_incremental_pull_and_delete_only_desc")
+        );
+
+        dropdown
+          .setValue(this.plugin.settings.syncDirection ?? "bidirectional")
+          .onChange(async (val) => {
+            this.plugin.settings.syncDirection = val as SyncDirectionsType;
+            await this.plugin.saveSettings();
+            await autoSaveToRemote();
+          });
+      });
+
+    let conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
+    if (
+      (this.plugin.settings.conflictAction ?? "keep_newer") ===
+      "smart_conflict"
+    ) {
+      conflictActionSettingOrigDesc += t(
+        "settings_conflictaction_smart_conflict_desc"
+      );
     }
+    const conflictActionSetting = new Setting(syncStrategyDiv)
+      .setName(t("settings_conflictaction"))
+      .setDesc(stringToFragment(conflictActionSettingOrigDesc));
+    conflictActionSetting.addDropdown((dropdown) => {
+      dropdown
+        .addOption("keep_newer", t("settings_conflictaction_keep_newer"))
+        .addOption("keep_larger", t("settings_conflictaction_keep_larger"))
+        .addOption(
+          "smart_conflict",
+          t("settings_conflictaction_smart_conflict")
+        )
+        .setValue(this.plugin.settings.conflictAction ?? "keep_newer")
+        .onChange(async (val) => {
+          this.plugin.settings.conflictAction = val as ConflictActionType;
+          await this.plugin.saveSettings();
+          await autoSaveToRemote();
+
+          conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
+          if (
+            (this.plugin.settings.conflictAction ?? "keep_newer") ===
+            "smart_conflict"
+          ) {
+            conflictActionSettingOrigDesc += t(
+              "settings_conflictaction_smart_conflict_desc"
+            );
+          }
+          conflictActionSetting.setDesc(
+            stringToFragment(conflictActionSettingOrigDesc)
+          );
+        });
+    });
+
+    new Setting(syncStrategyDiv)
+      .setName(t("settings_deletetowhere"))
+      .setDesc(t("settings_deletetowhere_desc"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption(
+          "system",
+          t("settings_deletetowhere_system_trash")
+        );
+        dropdown.addOption(
+          "obsidian",
+          t("settings_deletetowhere_obsidian_trash")
+        );
+        dropdown
+          .setValue(this.plugin.settings.deleteToWhere ?? "system")
+          .onChange(async (val) => {
+            this.plugin.settings.deleteToWhere = val as
+              | "system"
+              | "obsidian";
+            await this.plugin.saveSettings();
+            await autoSaveToRemote();
+          });
+      });
+
+    const percentage1 = new Setting(syncStrategyDiv)
+      .setName(t("settings_protectmodifypercentage"))
+      .setDesc(t("settings_protectmodifypercentage_desc"));
+
+    const percentage2 = new Setting(syncStrategyDiv)
+      .setName(t("settings_protectmodifypercentage_customfield"))
+      .setDesc(t("settings_protectmodifypercentage_customfield_desc"));
+    if ((this.plugin.settings.protectModifyPercentage ?? 50) % 10 === 0) {
+      percentage2.settingEl.addClass("settings-percentage-custom-hide");
+    }
+    let percentage2Text: TextComponent | undefined = undefined;
+    percentage2.addText((text) => {
+      text.inputEl.type = "number";
+      percentage2Text = text;
+      text
+        .setPlaceholder("0 ~ 100")
+        .setValue(`${this.plugin.settings.protectModifyPercentage ?? 50}`)
+        .onChange(async (val) => {
+          let k = Number.parseFloat(val.trim());
+          if (Number.isNaN(k)) {
+            // do nothing
+          } else {
+            if (k < 0) {
+              k = 0;
+            } else if (k > 100) {
+              k = 100;
+            }
+            this.plugin.settings.protectModifyPercentage = k;
+            await this.plugin.saveSettings();
+            await autoSaveToRemote();
+          }
+        });
+    });
+
+    percentage1.addDropdown((dropdown) => {
+      for (const i of Array.from({ length: 11 }, (x, i) => i * 10)) {
+        let desc = `${i}`;
+        if (i === 0) {
+          desc = t("settings_protectmodifypercentage_000_desc");
+        } else if (i === 50) {
+          desc = t("settings_protectmodifypercentage_050_desc");
+        } else if (i === 100) {
+          desc = t("settings_protectmodifypercentage_100_desc");
+        }
+        dropdown.addOption(`${i}`, desc);
+      }
+      dropdown.addOption(
+        "custom",
+        t("settings_protectmodifypercentage_custom_desc")
+      );
+
+      const p = this.plugin.settings.protectModifyPercentage ?? 50;
+      let initVal = "custom";
+      if (p % 10 === 0) {
+        initVal = `${p}`;
+      } else {
+        percentage2.settingEl.removeClass("settings-percentage-custom");
+      }
+      dropdown.setValue(initVal).onChange(async (val) => {
+        const k = Number.parseInt(val);
+        if (val === "custom" || Number.isNaN(k)) {
+          percentage2.settingEl.removeClass(
+            "settings-percentage-custom-hide"
+          );
+        } else {
+          this.plugin.settings.protectModifyPercentage = k;
+          percentage2.settingEl.addClass("settings-percentage-custom-hide");
+          percentage2Text?.setValue(`${k}`);
+          await this.plugin.saveSettings();
+          await autoSaveToRemote();
+        }
+      });
+    });
+
+    generateClearDupFilesSettingsPart(
+      syncStrategyDiv,
+      t,
+      this.app,
+      this.plugin
+    );
+
+    new Setting(syncStrategyDiv)
+      .setName(t("settings_skiplargefiles"))
+      .setDesc(t("settings_skiplargefiles_desc"))
+      .addDropdown((dropdown) => {
+        dropdown.addOption("-1", t("settings_skiplargefiles_notset"));
+        dropdown.addOption(`${1048576}`, t("settings_skiplargefiles_1mb"));
+        dropdown.addOption(`${1048576 * 5}`, t("settings_skiplargefiles_5mb"));
+        dropdown.addOption(`${1048576 * 10}`, t("settings_skiplargefiles_10mb"));
+        dropdown.addOption(
+          `${1048576 * 50}`,
+          t("settings_skiplargefiles_50mb")
+        );
+        dropdown.addOption(
+          `${1048576 * 100}`,
+          t("settings_skiplargefiles_100mb")
+        );
+        dropdown.addOption(
+          `${1048576 * 500}`,
+          t("settings_skiplargefiles_500mb")
+        );
+
+        dropdown
+          .setValue(`${this.plugin.settings.skipSizeLargerThan}`)
+          .onChange(async (val: string) => {
+            this.plugin.settings.skipSizeLargerThan = Number.parseInt(val);
+            await this.plugin.saveSettings();
+            await autoSaveToRemote();
+          });
+      });
+
+    new Setting(syncStrategyDiv)
+      .setName(t("settings_concurrency"))
+      .setDesc(t("settings_concurrency_desc"))
+      .addText((text) => {
+        text
+          .setPlaceholder("5")
+          .setValue(`${this.plugin.settings.concurrency ?? 5}`)
+          .onChange(async (val: string) => {
+            const num = Number.parseInt(val);
+            if (!Number.isNaN(num) && num >= 1 && num <= 20) {
+              this.plugin.settings.concurrency = num;
+              await this.plugin.saveSettings();
+              await autoSaveToRemote();
+            }
+          });
+      });
+
+    new Setting(syncStrategyDiv)
+      .setName(t("settings_syncunderscore"))
+      .addDropdown(async (dropdown) => {
+        dropdown.addOption("enable", t("enable"));
+        dropdown.addOption("disable", t("disable"));
+
+        dropdown
+          .setValue(
+            `${this.plugin.settings.syncUnderscoreItems ? "enable" : "disable"}`
+          )
+          .onChange(async (val) => {
+            this.plugin.settings.syncUnderscoreItems = val === "enable";
+            await this.plugin.saveSettings();
+            await autoSaveToRemote();
+          });
+      });
+
+    // ===== 卡片3: 自动化 =====
+    const automationDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
+    automationDiv.createEl("h2", { text: t("settings_automation") });
 
     {
       const deviceId = this.plugin.deviceId;
@@ -1106,6 +1389,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             const realVal = Number.parseInt(val);
             this.plugin.settings.autoRunEveryMilliseconds = realVal;
             await this.plugin.saveSettings();
+            await autoSaveToRemote();
             if (
               (realVal === undefined || realVal === null || realVal <= 0) &&
               this.plugin.autoRunIntervalID !== undefined
@@ -1151,6 +1435,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             const realVal = Number.parseInt(val);
             this.plugin.settings.initRunAfterMilliseconds = realVal;
             await this.plugin.saveSettings();
+            await autoSaveToRemote();
           });
       });
 
@@ -1170,6 +1455,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             const realVal = Number.parseInt(val);
             this.plugin.settings.syncOnSaveAfterMilliseconds = realVal;
             await this.plugin.saveSettings();
+            await autoSaveToRemote();
           });
       });
 
@@ -1241,14 +1527,64 @@ export class ObsSyncSettingTab extends PluginSettingTab {
               this.plugin.appContainerObserver = undefined;
             }
             await this.plugin.saveSettings();
+            await autoSaveToRemote();
           });
       });
 
-    // ===== 卡片3: Obsidian 配置同步 =====
+    // ===== 卡片4: 过滤规则 =====
+    const filterRulesDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
+    filterRulesDiv.createEl("h2", { text: t("settings_filter_rules") });
+
+    new Setting(filterRulesDiv)
+      .setName(t("settings_ignorepaths"))
+      .setDesc(t("settings_ignorepaths_desc"))
+      .setClass("ignorepaths-settings")
+      .addTextArea((textArea) => {
+        textArea
+          .setValue(`${(this.plugin.settings.ignorePaths ?? []).join("\n")}`)
+          .onChange(async (value) => {
+            this.plugin.settings.ignorePaths = value
+              .trim()
+              .split("\n")
+              .filter((x) => x.trim() !== "");
+            await this.plugin.saveSettings();
+            await autoSaveToRemote();
+          });
+        textArea.inputEl.rows = 10;
+        textArea.inputEl.cols = 30;
+        textArea.inputEl.addClass("ignorepaths-textarea");
+      });
+
+    new Setting(filterRulesDiv)
+      .setName(t("settings_onlyallowpaths"))
+      .setDesc(t("settings_onlyallowpaths_desc"))
+      .setClass("onlyallowpaths-settings")
+      .addTextArea((textArea) => {
+        textArea
+          .setValue(
+            `${(this.plugin.settings.onlyAllowPaths ?? []).join("\n")}`
+          )
+          .onChange(async (value) => {
+            this.plugin.settings.onlyAllowPaths = value
+              .trim()
+              .split("\n")
+              .filter((x) => x.trim() !== "");
+            await this.plugin.saveSettings();
+            await autoSaveToRemote();
+          });
+        textArea.inputEl.rows = 10;
+        textArea.inputEl.cols = 30;
+        textArea.inputEl.addClass("onlyallowpaths-textarea");
+      });
+
+    //////////////////////////////////////////////////
+    // Tab 3: 配置同步
+    //////////////////////////////////////////////////
+
+    // ===== 卡片1: Obsidian 配置同步 =====
     const obsidianConfigDiv = deviceAutomationPane.createEl("div", { cls: "obsync-section" });
     obsidianConfigDiv.createEl("h2", { text: t("settings_obsidian_config_sync") });
 
-    // 配置目录同步总开关
     new Setting(obsidianConfigDiv)
       .setName(t("settings_enable_device_config_sync"))
       .setDesc(t("settings_enable_device_config_sync_desc"))
@@ -1258,6 +1594,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           .onChange(async (val) => {
             this.plugin.settings.enableDeviceConfigSync = val;
             await this.plugin.saveSettings();
+            await autoSaveToRemote();
             this.display();
           });
       });
@@ -1290,12 +1627,13 @@ export class ObsSyncSettingTab extends PluginSettingTab {
                 categorySyncModes: newModes,
               };
               await this.plugin.saveSettings();
+              await autoSaveToRemote();
             });
           });
       }
     }
 
-    // ===== 卡片4: 插件同步 =====
+    // ===== 卡片2: 插件同步 =====
     if (this.plugin.settings.enableDeviceConfigSync) {
       const deviceId = this.plugin.deviceId;
       const deviceProfile = this.plugin.settings.deviceProfiles?.[deviceId];
@@ -1311,30 +1649,37 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             (id) => id !== this.plugin.manifest.id
           );
 
-          // 清理已删除插件的残留配置
-          if (deviceProfile?.pullOnlyPlugins || deviceProfile?.pushOnlyPlugins || deviceProfile?.skipPlugins) {
-            const pullOnly = (deviceProfile.pullOnlyPlugins ?? []).filter(
-              (id) => otherPlugins.includes(id)
-            );
-            const pushOnly = (deviceProfile.pushOnlyPlugins ?? []).filter(
-              (id) => otherPlugins.includes(id)
-            );
-            const skip = (deviceProfile.skipPlugins ?? []).filter(
-              (id) => otherPlugins.includes(id)
-            );
-            const hasChanges =
-              pullOnly.length !== (deviceProfile.pullOnlyPlugins ?? []).length ||
-              pushOnly.length !== (deviceProfile.pushOnlyPlugins ?? []).length ||
-              skip.length !== (deviceProfile.skipPlugins ?? []).length;
-            if (hasChanges) {
-              this.plugin.settings.deviceProfiles[deviceId] = {
-                ...deviceProfile,
-                pullOnlyPlugins: pullOnly,
-                pushOnlyPlugins: pushOnly,
-                skipPlugins: skip,
-              };
-              await this.plugin.saveSettings();
+          // 清理已删除插件的残留配置（修复脏数据：从所有设备的 profile 中清理）
+          let needSave = false;
+          if (this.plugin.settings.deviceProfiles) {
+            for (const [did, profile] of Object.entries(this.plugin.settings.deviceProfiles)) {
+              const p = profile as DeviceConfigProfile;
+              const pullOnly = (p.pullOnlyPlugins ?? []).filter(
+                (id) => enabledPluginIds.includes(id) || id === this.plugin.manifest.id
+              );
+              const pushOnly = (p.pushOnlyPlugins ?? []).filter(
+                (id) => enabledPluginIds.includes(id) || id === this.plugin.manifest.id
+              );
+              const skip = (p.skipPlugins ?? []).filter(
+                (id) => enabledPluginIds.includes(id) || id === this.plugin.manifest.id
+              );
+              if (
+                pullOnly.length !== (p.pullOnlyPlugins ?? []).length ||
+                pushOnly.length !== (p.pushOnlyPlugins ?? []).length ||
+                skip.length !== (p.skipPlugins ?? []).length
+              ) {
+                this.plugin.settings.deviceProfiles[did] = {
+                  ...p,
+                  pullOnlyPlugins: pullOnly,
+                  pushOnlyPlugins: pushOnly,
+                  skipPlugins: skip,
+                };
+                needSave = true;
+              }
             }
+          }
+          if (needSave) {
+            await this.plugin.saveSettings();
           }
 
           if (otherPlugins.length > 0) {
@@ -1386,6 +1731,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
                       skipPlugins: skip,
                     };
                     await this.plugin.saveSettings();
+                    await autoSaveToRemote();
                   });
                 });
             }
@@ -1395,292 +1741,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
         }
       }
     }
-
-    //////////////////////////////////////////////////
-    // Tab 2: 同步策略
-    //////////////////////////////////////////////////
-
-    const syncStrategyDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
-    syncStrategyDiv.createEl("h2", { text: t("settings_file_sync_strategy") });
-
-    new Setting(syncStrategyDiv)
-      .setName(t("setting_syncdirection"))
-      .setDesc(stringToFragment(t("setting_syncdirection_desc")))
-      .addDropdown((dropdown) => {
-        dropdown.addOption(
-          "bidirectional",
-          t("setting_syncdirection_bidirectional_desc")
-        );
-        dropdown.addOption(
-          "incremental_push_only",
-          t("setting_syncdirection_incremental_push_only_desc")
-        );
-        dropdown.addOption(
-          "incremental_pull_only",
-          t("setting_syncdirection_incremental_pull_only_desc")
-        );
-        dropdown.addOption(
-          "incremental_push_and_delete_only",
-          t("setting_syncdirection_incremental_push_and_delete_only_desc")
-        );
-        dropdown.addOption(
-          "incremental_pull_and_delete_only",
-          t("setting_syncdirection_incremental_pull_and_delete_only_desc")
-        );
-
-        dropdown
-          .setValue(this.plugin.settings.syncDirection ?? "bidirectional")
-          .onChange(async (val) => {
-            this.plugin.settings.syncDirection = val as SyncDirectionsType;
-            await this.plugin.saveSettings();
-          });
-      });
-
-    let conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
-    if (
-      (this.plugin.settings.conflictAction ?? "keep_newer") ===
-      "smart_conflict"
-    ) {
-      conflictActionSettingOrigDesc += t(
-        "settings_conflictaction_smart_conflict_desc"
-      );
-    }
-    const conflictActionSetting = new Setting(syncStrategyDiv)
-      .setName(t("settings_conflictaction"))
-      .setDesc(stringToFragment(conflictActionSettingOrigDesc));
-    conflictActionSetting.addDropdown((dropdown) => {
-      dropdown
-        .addOption("keep_newer", t("settings_conflictaction_keep_newer"))
-        .addOption("keep_larger", t("settings_conflictaction_keep_larger"))
-        .addOption(
-          "smart_conflict",
-          t("settings_conflictaction_smart_conflict")
-        )
-        .setValue(this.plugin.settings.conflictAction ?? "keep_newer")
-        .onChange(async (val) => {
-          this.plugin.settings.conflictAction = val as ConflictActionType;
-          await this.plugin.saveSettings();
-
-          conflictActionSettingOrigDesc = t("settings_conflictaction_desc");
-          if (
-            (this.plugin.settings.conflictAction ?? "keep_newer") ===
-            "smart_conflict"
-          ) {
-            conflictActionSettingOrigDesc += t(
-              "settings_conflictaction_smart_conflict_desc"
-            );
-          }
-          conflictActionSetting.setDesc(
-            stringToFragment(conflictActionSettingOrigDesc)
-          );
-        });
-    });
-
-    new Setting(syncStrategyDiv)
-      .setName(t("settings_deletetowhere"))
-      .setDesc(t("settings_deletetowhere_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption(
-          "system",
-          t("settings_deletetowhere_system_trash")
-        );
-        dropdown.addOption(
-          "obsidian",
-          t("settings_deletetowhere_obsidian_trash")
-        );
-        dropdown
-          .setValue(this.plugin.settings.deleteToWhere ?? "system")
-          .onChange(async (val) => {
-            this.plugin.settings.deleteToWhere = val as
-              | "system"
-              | "obsidian";
-            await this.plugin.saveSettings();
-          });
-      });
-
-    const percentage1 = new Setting(syncStrategyDiv)
-      .setName(t("settings_protectmodifypercentage"))
-      .setDesc(t("settings_protectmodifypercentage_desc"));
-
-    const percentage2 = new Setting(syncStrategyDiv)
-      .setName(t("settings_protectmodifypercentage_customfield"))
-      .setDesc(t("settings_protectmodifypercentage_customfield_desc"));
-    if ((this.plugin.settings.protectModifyPercentage ?? 50) % 10 === 0) {
-      percentage2.settingEl.addClass("settings-percentage-custom-hide");
-    }
-    let percentage2Text: TextComponent | undefined = undefined;
-    percentage2.addText((text) => {
-      text.inputEl.type = "number";
-      percentage2Text = text;
-      text
-        .setPlaceholder("0 ~ 100")
-        .setValue(`${this.plugin.settings.protectModifyPercentage ?? 50}`)
-        .onChange(async (val) => {
-          let k = Number.parseFloat(val.trim());
-          if (Number.isNaN(k)) {
-            // do nothing
-          } else {
-            if (k < 0) {
-              k = 0;
-            } else if (k > 100) {
-              k = 100;
-            }
-            this.plugin.settings.protectModifyPercentage = k;
-            await this.plugin.saveSettings();
-          }
-        });
-    });
-
-    percentage1.addDropdown((dropdown) => {
-      for (const i of Array.from({ length: 11 }, (x, i) => i * 10)) {
-        let desc = `${i}`;
-        if (i === 0) {
-          desc = t("settings_protectmodifypercentage_000_desc");
-        } else if (i === 50) {
-          desc = t("settings_protectmodifypercentage_050_desc");
-        } else if (i === 100) {
-          desc = t("settings_protectmodifypercentage_100_desc");
-        }
-        dropdown.addOption(`${i}`, desc);
-      }
-      dropdown.addOption(
-        "custom",
-        t("settings_protectmodifypercentage_custom_desc")
-      );
-
-      const p = this.plugin.settings.protectModifyPercentage ?? 50;
-      let initVal = "custom";
-      if (p % 10 === 0) {
-        initVal = `${p}`;
-      } else {
-        percentage2.settingEl.removeClass("settings-percentage-custom");
-      }
-      dropdown.setValue(initVal).onChange(async (val) => {
-        const k = Number.parseInt(val);
-        if (val === "custom" || Number.isNaN(k)) {
-          percentage2.settingEl.removeClass(
-            "settings-percentage-custom-hide"
-          );
-        } else {
-          this.plugin.settings.protectModifyPercentage = k;
-          percentage2.settingEl.addClass("settings-percentage-custom-hide");
-          percentage2Text?.setValue(`${k}`);
-          await this.plugin.saveSettings();
-        }
-      });
-    });
-
-    generateClearDupFilesSettingsPart(
-      syncStrategyDiv,
-      t,
-      this.app,
-      this.plugin
-    );
-
-    new Setting(syncStrategyDiv)
-      .setName(t("settings_skiplargefiles"))
-      .setDesc(t("settings_skiplargefiles_desc"))
-      .addDropdown((dropdown) => {
-        dropdown.addOption("-1", t("settings_skiplargefiles_notset"));
-        dropdown.addOption(`${1048576}`, t("settings_skiplargefiles_1mb"));
-        dropdown.addOption(`${1048576 * 5}`, t("settings_skiplargefiles_5mb"));
-        dropdown.addOption(`${1048576 * 10}`, t("settings_skiplargefiles_10mb"));
-        dropdown.addOption(
-          `${1048576 * 50}`,
-          t("settings_skiplargefiles_50mb")
-        );
-        dropdown.addOption(
-          `${1048576 * 100}`,
-          t("settings_skiplargefiles_100mb")
-        );
-        dropdown.addOption(
-          `${1048576 * 500}`,
-          t("settings_skiplargefiles_500mb")
-        );
-
-        dropdown
-          .setValue(`${this.plugin.settings.skipSizeLargerThan}`)
-          .onChange(async (val: string) => {
-            this.plugin.settings.skipSizeLargerThan = Number.parseInt(val);
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(syncStrategyDiv)
-      .setName(t("settings_concurrency"))
-      .setDesc(t("settings_concurrency_desc"))
-      .addText((text) => {
-        text
-          .setPlaceholder("5")
-          .setValue(`${this.plugin.settings.concurrency ?? 5}`)
-          .onChange(async (val: string) => {
-            const num = Number.parseInt(val);
-            if (!Number.isNaN(num) && num >= 1 && num <= 20) {
-              this.plugin.settings.concurrency = num;
-              await this.plugin.saveSettings();
-            }
-          });
-      });
-
-    new Setting(syncStrategyDiv)
-      .setName(t("settings_syncunderscore"))
-      .addDropdown(async (dropdown) => {
-        dropdown.addOption("enable", t("enable"));
-        dropdown.addOption("disable", t("disable"));
-
-        dropdown
-          .setValue(
-            `${this.plugin.settings.syncUnderscoreItems ? "enable" : "disable"}`
-          )
-          .onChange(async (val) => {
-            this.plugin.settings.syncUnderscoreItems = val === "enable";
-            await this.plugin.saveSettings();
-          });
-      });
-
-    // ===== 过滤规则 =====
-    const filterRulesDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
-    filterRulesDiv.createEl("h2", { text: t("settings_filter_rules") });
-
-    new Setting(filterRulesDiv)
-      .setName(t("settings_ignorepaths"))
-      .setDesc(t("settings_ignorepaths_desc"))
-      .setClass("ignorepaths-settings")
-      .addTextArea((textArea) => {
-        textArea
-          .setValue(`${(this.plugin.settings.ignorePaths ?? []).join("\n")}`)
-          .onChange(async (value) => {
-            this.plugin.settings.ignorePaths = value
-              .trim()
-              .split("\n")
-              .filter((x) => x.trim() !== "");
-            await this.plugin.saveSettings();
-          });
-        textArea.inputEl.rows = 10;
-        textArea.inputEl.cols = 30;
-        textArea.inputEl.addClass("ignorepaths-textarea");
-      });
-
-    new Setting(filterRulesDiv)
-      .setName(t("settings_onlyallowpaths"))
-      .setDesc(t("settings_onlyallowpaths_desc"))
-      .setClass("onlyallowpaths-settings")
-      .addTextArea((textArea) => {
-        textArea
-          .setValue(
-            `${(this.plugin.settings.onlyAllowPaths ?? []).join("\n")}`
-          )
-          .onChange(async (value) => {
-            this.plugin.settings.onlyAllowPaths = value
-              .trim()
-              .split("\n")
-              .filter((x) => x.trim() !== "");
-            await this.plugin.saveSettings();
-          });
-        textArea.inputEl.rows = 10;
-        textArea.inputEl.cols = 30;
-        textArea.inputEl.addClass("onlyallowpaths-textarea");
-      });
 
     //////////////////////////////////////////////////
     // Tab 4: 工具箱 — 导入导出
