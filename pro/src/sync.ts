@@ -40,7 +40,6 @@ import {
 } from "../../src/misc";
 import type { Profiler } from "../../src/profiler";
 import { isSelfPluginSyncSkippedPath } from "../../src/selfPluginSyncFilter";
-import { checkProRunnableAndFixInplace } from "./account";
 import { isMergable, mergeFile, tryDuplicateFile } from "./conflictLogic";
 import {
   clearFileContentHistoryByVaultAndProfile,
@@ -2053,10 +2052,6 @@ export async function syncer(
   let step = 0;
 
   try {
-    // check pro feature
-    // if anything goes wrong, it will throw
-    await checkProRunnableAndFixInplace(settings, pluginVersion, configSaver);
-
     // try mode?
     await notifyFunc?.(triggerSource, step);
 

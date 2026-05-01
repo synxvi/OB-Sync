@@ -228,21 +228,6 @@
   display: grid;
 }
 
-.pro-disclaimer {
-  font-weight: bold;
-}
-.pro-hide {
-  display: none;
-}
-
-.pro-auth-button-hide {
-  display: none;
-}
-
-.pro-revoke-auth-button-hide {
-  display: none;
-}
-
 .config-mgmt-device-item {
   border-bottom: 1px solid var(--background-modifier-border);
   padding-bottom: 4px;
@@ -488,7 +473,7 @@ details.obsync-collapsible > .obsync-collapsible-body {
 
 /* 长描述文本区域 */
 .obsync-settings .settings-long-desc {
-  padding: 0 4px;
+  padding: 0 20px;
 }
 
 .obsync-settings .settings-long-desc p {
