@@ -189,6 +189,8 @@ export interface DeviceConfigProfile {
   categorySyncModes: Partial<Record<ConfigSyncCategory, ConfigSyncMode>>;
   /** 仅拉取的插件 ID 列表 */
   pullOnlyPlugins?: string[];
+  /** 仅推送的插件 ID 列表 */
+  pushOnlyPlugins?: string[];
   /** 完全跳过的插件 ID 列表 */
   skipPlugins?: string[];
 }

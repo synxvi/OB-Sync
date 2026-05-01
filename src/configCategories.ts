@@ -85,6 +85,9 @@ export const getConfigSyncModeForFile = (
             if (deviceProfile.skipPlugins?.includes(pluginId)) {
               return "skip";
             }
+            if (deviceProfile.pushOnlyPlugins?.includes(pluginId)) {
+              return "push_only";
+            }
             if (deviceProfile.pullOnlyPlugins?.includes(pluginId)) {
               return "pull_only";
             }

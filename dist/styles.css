@@ -243,13 +243,6 @@
   display: none;
 }
 
-.config-mgmt-json-viewer {
-  font-family: monospace;
-  width: 100%;
-  min-height: 300px;
-  resize: vertical;
-}
-
 .config-mgmt-device-item {
   border-bottom: 1px solid var(--background-modifier-border);
   padding-bottom: 4px;
@@ -491,13 +484,6 @@ details.obsync-collapsible > .obsync-collapsible-body {
   margin-bottom: 8px;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
-}
-
-/* JSON 查看器增强 */
-.obsync-settings .config-mgmt-json-viewer {
-  border-radius: 6px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
 }
 
 /* 长描述文本区域 */

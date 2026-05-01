@@ -954,9 +954,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     // 设备列表容器
     const deviceListContainer = syncConfigDiv.createDiv();
-    // JSON 查看器
-    let jsonViewer: HTMLTextAreaElement | null = null;
-
     const renderDeviceList = (container: HTMLElement, t: (x: any, vars?: any) => string) => {
       const existingItems = container.querySelectorAll(".config-mgmt-device-item");
       for (const item of existingItems) {
@@ -979,14 +976,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             `${snapshot.savedByDeviceName} (${snapshot.savedByDeviceId.slice(0, 8)}...)`
           )
           .setDesc(t("config_mgmt_saved_at", { time: savedTime }))
-          .addButton((btn) => {
-            btn.setButtonText(t("config_mgmt_view_json"));
-            btn.onClick(() => {
-              if (jsonViewer) {
-                jsonViewer.value = JSON.stringify(snapshot, null, 2);
-              }
-            });
-          })
           .addButton((btn) => {
             btn.setButtonText(t("config_mgmt_apply"));
             btn.onClick(() => {
@@ -1048,13 +1037,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
     this.renderDeviceList = renderDeviceList;
     renderDeviceList(deviceListContainer, t);
 
-    // JSON 查看器区域
-    syncConfigDiv.createEl("h4", { text: t("config_mgmt_json_viewer") });
-    jsonViewer = syncConfigDiv.createEl("textarea", {
-      cls: "config-mgmt-json-viewer",
-      attr: { readonly: "", rows: "20", placeholder: "JSON..." },
-    });
-
     // ===== 本设备信息 =====
     syncConfigDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_device_info") });
 
@@ -1074,6 +1056,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
           registeredAt: Date.now(),
           categorySyncModes: {},
           pullOnlyPlugins: [],
+          pushOnlyPlugins: [],
           skipPlugins: [],
         };
       }
@@ -1201,9 +1184,6 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
     const syncStrategyDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
     syncStrategyDiv.createEl("h2", { text: t("settings_file_sync_strategy") });
-
-    // ===== 文件同步策略 =====
-    syncStrategyDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_file_sync_strategy") });
 
     new Setting(syncStrategyDiv)
       .setName(t("setting_syncdirection"))
@@ -1512,9 +1492,10 @@ export class ObsSyncSettingTab extends PluginSettingTab {
       });
 
     // ===== 过滤规则 =====
-    syncStrategyDiv.createEl("div", { cls: "obsync-subsection" }).createEl("h3", { text: t("settings_filter_rules") });
+    const filterRulesDiv = syncStrategyPane.createEl("div", { cls: "obsync-section" });
+    filterRulesDiv.createEl("h2", { text: t("settings_filter_rules") });
 
-    new Setting(syncStrategyDiv)
+    new Setting(filterRulesDiv)
       .setName(t("settings_ignorepaths"))
       .setDesc(t("settings_ignorepaths_desc"))
       .setClass("ignorepaths-settings")
@@ -1533,7 +1514,7 @@ export class ObsSyncSettingTab extends PluginSettingTab {
         textArea.inputEl.addClass("ignorepaths-textarea");
       });
 
-    new Setting(syncStrategyDiv)
+    new Setting(filterRulesDiv)
       .setName(t("settings_onlyallowpaths"))
       .setDesc(t("settings_onlyallowpaths_desc"))
       .setClass("onlyallowpaths-settings")
@@ -1615,6 +1596,32 @@ export class ObsSyncSettingTab extends PluginSettingTab {
             (id) => id !== this.plugin.manifest.id
           );
 
+          // 清理已删除插件的残留配置
+          if (deviceProfile?.pullOnlyPlugins || deviceProfile?.pushOnlyPlugins || deviceProfile?.skipPlugins) {
+            const pullOnly = (deviceProfile.pullOnlyPlugins ?? []).filter(
+              (id) => otherPlugins.includes(id)
+            );
+            const pushOnly = (deviceProfile.pushOnlyPlugins ?? []).filter(
+              (id) => otherPlugins.includes(id)
+            );
+            const skip = (deviceProfile.skipPlugins ?? []).filter(
+              (id) => otherPlugins.includes(id)
+            );
+            const hasChanges =
+              pullOnly.length !== (deviceProfile.pullOnlyPlugins ?? []).length ||
+              pushOnly.length !== (deviceProfile.pushOnlyPlugins ?? []).length ||
+              skip.length !== (deviceProfile.skipPlugins ?? []).length;
+            if (hasChanges) {
+              this.plugin.settings.deviceProfiles[deviceId] = {
+                ...deviceProfile,
+                pullOnlyPlugins: pullOnly,
+                pushOnlyPlugins: pushOnly,
+                skipPlugins: skip,
+              };
+              await this.plugin.saveSettings();
+            }
+          }
+
           if (otherPlugins.length > 0) {
             new Setting(syncConfigDiv)
               .setName(t("device_config_per_plugin"))
@@ -1622,15 +1629,18 @@ export class ObsSyncSettingTab extends PluginSettingTab {
 
             for (const pluginId of otherPlugins) {
               const isPullOnly = deviceProfile?.pullOnlyPlugins?.includes(pluginId) ?? false;
+              const isPushOnly = deviceProfile?.pushOnlyPlugins?.includes(pluginId) ?? false;
               const isSkip = deviceProfile?.skipPlugins?.includes(pluginId) ?? false;
               let currentOverride = "default";
               if (isSkip) currentOverride = "skip";
+              else if (isPushOnly) currentOverride = "push_only";
               else if (isPullOnly) currentOverride = "pull_only";
 
               new Setting(syncConfigDiv)
                 .setName(pluginId)
                 .addDropdown((dropdown) => {
                   dropdown.addOption("default", t("device_config_plugin_default"));
+                  dropdown.addOption("push_only", t("device_config_mode_push_only"));
                   dropdown.addOption("pull_only", t("device_config_mode_pull_only"));
                   dropdown.addOption("skip", t("device_config_mode_skip"));
                   dropdown.setValue(currentOverride).onChange(async (val) => {
@@ -1639,16 +1649,21 @@ export class ObsSyncSettingTab extends PluginSettingTab {
                     }
                     const profile =
                       this.plugin.settings.deviceProfiles[deviceId] ?? deviceProfile;
+                    const pushOnly = (profile.pushOnlyPlugins ?? []).filter(
+                      (id) => id !== pluginId
+                    );
                     const pullOnly = (profile.pullOnlyPlugins ?? []).filter(
                       (id) => id !== pluginId
                     );
                     const skip = (profile.skipPlugins ?? []).filter(
                       (id) => id !== pluginId
                     );
+                    if (val === "push_only") pushOnly.push(pluginId);
                     if (val === "pull_only") pullOnly.push(pluginId);
                     if (val === "skip") skip.push(pluginId);
                     this.plugin.settings.deviceProfiles[deviceId] = {
                       ...profile,
+                      pushOnlyPlugins: pushOnly,
                       pullOnlyPlugins: pullOnly,
                       skipPlugins: skip,
                     };
@@ -1662,6 +1677,42 @@ export class ObsSyncSettingTab extends PluginSettingTab {
         }
       }
     }
+
+    // 底部保存到远程按钮
+    new Setting(syncConfigDiv)
+      .setName(t("settings_save_config"))
+      .setDesc(t("settings_save_config_desc"))
+      .addButton((button) => {
+        button.setButtonText(t("settings_save_config"));
+        button.onClick(async () => {
+          const settings = this.plugin.settings;
+          if (!settings.serviceType) {
+            new Notice(t("config_mgmt_no_remote"));
+            return;
+          }
+          try {
+            new Notice(t("settings_save_config_saving"));
+            const client = getClient(
+              settings,
+              this.app.vault.getName(),
+              () => this.plugin.saveSettings()
+            );
+            const deviceId = this.plugin.deviceId;
+            const deviceProfile = settings.deviceProfiles?.[deviceId];
+            const deviceName = deviceProfile?.deviceName ?? (Platform.isMobile ? "Mobile" : "Desktop");
+            const snapshot = buildConfigSnapshot(
+              settings,
+              deviceId,
+              deviceName,
+              this.plugin.manifest.version
+            );
+            await saveConfigToRemote(client, snapshot, deviceId);
+            new Notice(t("settings_save_config_success"));
+          } catch (err) {
+            new Notice(`${t("settings_save_config_fail")}: ${err}`);
+          }
+        });
+      });
 
     //////////////////////////////////////////////////
     // Tab 4: 工具箱 — 导入导出

@@ -1072,6 +1072,7 @@ export default class ObsSyncPlugin extends Plugin {
       registeredAt: profile?.registeredAt ?? Date.now(),
       categorySyncModes: profile?.categorySyncModes ?? {},
       pullOnlyPlugins: profile?.pullOnlyPlugins ?? [],
+      pushOnlyPlugins: profile?.pushOnlyPlugins ?? [],
       skipPlugins: profile?.skipPlugins ?? [],
     };
     const needsProfileSave =
@@ -1084,6 +1085,8 @@ export default class ObsSyncPlugin extends Plugin {
         JSON.stringify(normalizedProfile.categorySyncModes) ||
       JSON.stringify(profile.pullOnlyPlugins ?? []) !==
         JSON.stringify(normalizedProfile.pullOnlyPlugins) ||
+      JSON.stringify(profile.pushOnlyPlugins ?? []) !==
+        JSON.stringify(normalizedProfile.pushOnlyPlugins) ||
       JSON.stringify(profile.skipPlugins ?? []) !==
         JSON.stringify(normalizedProfile.skipPlugins);
     if (needsProfileSave) {
