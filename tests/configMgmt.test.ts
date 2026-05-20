@@ -95,7 +95,7 @@ describe("applySnapshotToLocal", () => {
     ]);
   });
 
-  it("keeps the current device profile when the snapshot lacks it", () => {
+  it("inherits sender config sync prefs when the snapshot lacks the current device", () => {
     const current = makeSettings({
       deviceProfiles: {
         mobile: {
@@ -105,31 +105,83 @@ describe("applySnapshotToLocal", () => {
           registeredAt: 1,
           categorySyncModes: { hotkeys: "pull_only" },
           pullOnlyPlugins: [],
+          pushOnlyPlugins: [],
           skipPlugins: [],
         },
       },
     });
     const snapshot = makeSnapshot({
+      savedByDeviceId: "desktop",
       deviceProfiles: {
         desktop: {
           deviceId: "desktop",
           deviceName: "Desktop",
           platform: "desktop",
           registeredAt: 2,
-          categorySyncModes: { themes: "skip" },
-          pullOnlyPlugins: [],
-          skipPlugins: [],
+          categorySyncModes: { themes: "skip", hotkeys: "push_only" },
+          pullOnlyPlugins: ["calendar"],
+          pushOnlyPlugins: ["tasks"],
+          skipPlugins: ["large-plugin"],
         },
       },
     });
 
     const applied = applySnapshotToLocal(snapshot, current, "mobile");
 
+    // 身份信息保留本地
+    assert.equal(applied.deviceProfiles?.mobile.deviceName, "Local Mobile");
+    assert.equal(applied.deviceProfiles?.mobile.platform, "mobile");
+    assert.equal(applied.deviceProfiles?.mobile.deviceId, "mobile");
+    // 配置同步偏好从发送端继承
+    assert.equal(
+      applied.deviceProfiles?.mobile.categorySyncModes.themes,
+      "skip"
+    );
+    assert.equal(
+      applied.deviceProfiles?.mobile.categorySyncModes.hotkeys,
+      "push_only"
+    );
+    assert.deepEqual(applied.deviceProfiles?.mobile.pullOnlyPlugins, [
+      "calendar",
+    ]);
+    assert.deepEqual(applied.deviceProfiles?.mobile.pushOnlyPlugins, [
+      "tasks",
+    ]);
+    assert.deepEqual(applied.deviceProfiles?.mobile.skipPlugins, [
+      "large-plugin",
+    ]);
+    // 远程设备的 profile 也被合并进来
+    assert.equal(applied.deviceProfiles?.desktop.deviceName, "Desktop");
+  });
+
+  it("keeps the current device profile as-is when both snapshot and sender lack it", () => {
+    const current = makeSettings({
+      deviceProfiles: {
+        mobile: {
+          deviceId: "mobile",
+          deviceName: "Local Mobile",
+          platform: "mobile",
+          registeredAt: 1,
+          categorySyncModes: { hotkeys: "pull_only" },
+          pullOnlyPlugins: [],
+          pushOnlyPlugins: [],
+          skipPlugins: [],
+        },
+      },
+    });
+    // snapshot 没有任何 deviceProfiles
+    const snapshot = makeSnapshot({
+      savedByDeviceId: "unknown-device",
+      deviceProfiles: {},
+    });
+
+    const applied = applySnapshotToLocal(snapshot, current, "mobile");
+
+    // 发送端也没有 profile，本地保持不变
     assert.equal(applied.deviceProfiles?.mobile.deviceName, "Local Mobile");
     assert.equal(
       applied.deviceProfiles?.mobile.categorySyncModes.hotkeys,
       "pull_only"
     );
-    assert.equal(applied.deviceProfiles?.desktop.deviceName, "Desktop");
   });
 });

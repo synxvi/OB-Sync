@@ -29,6 +29,7 @@ esbuild
     bundle: true,
     alias: {
       "node:url": "url/",
+      "node:crypto": "crypto-browserify",
     },
     external: [
       "obsidian",

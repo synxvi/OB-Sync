@@ -141,7 +141,7 @@ export const applySnapshotToLocal = (
   };
 
   // 合并 deviceProfiles：优先使用快照中的配置；如果快照缺少当前设备，
-  // 再保留本地当前设备 profile，避免应用旧快照时丢失本机身份。
+  // 保留本地当前设备 profile 的身份信息，但继承发送端的配置同步偏好。
   const mergedProfiles: Record<string, DeviceConfigProfile> = {
     ...(snapshot.deviceProfiles ?? {}),
   };
@@ -149,8 +149,20 @@ export const applySnapshotToLocal = (
     mergedProfiles[currentDeviceId] === undefined &&
     currentSettings.deviceProfiles?.[currentDeviceId]
   ) {
-    mergedProfiles[currentDeviceId] =
-      currentSettings.deviceProfiles[currentDeviceId];
+    const localProfile = currentSettings.deviceProfiles[currentDeviceId];
+    const senderProfile = snapshot.deviceProfiles?.[snapshot.savedByDeviceId];
+    mergedProfiles[currentDeviceId] = {
+      ...localProfile,
+      // 继承发送端的配置同步偏好，使"应用远程配置"能真正生效
+      ...(senderProfile
+        ? {
+            categorySyncModes: senderProfile.categorySyncModes,
+            pullOnlyPlugins: senderProfile.pullOnlyPlugins,
+            pushOnlyPlugins: senderProfile.pushOnlyPlugins,
+            skipPlugins: senderProfile.skipPlugins,
+          }
+        : {}),
+    };
   }
 
   return {

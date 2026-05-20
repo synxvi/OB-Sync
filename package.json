@@ -1,6 +1,6 @@
 {
   "name": "ob-sync",
-  "version": "1.5.9",
+  "version": "1.6.0",
   "description": "A simplified sync plugin for Obsidian app with WebDAV and OneDrive support.",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
@@ -41,6 +41,7 @@
     "dotenv": "^17.4.2",
     "esbuild": "^0.28.0",
     "esbuild-plugin-inline-worker": "^0.1.1",
+    "events": "^3.3.0",
     "jsdom": "^29.0.2",
     "mocha": "^11.7.5",
     "npm-check-updates": "^21.0.2",
