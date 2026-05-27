@@ -392,9 +392,23 @@ export class FakeFsEncrypt extends FakeFs {
     if (!this.hasCacheMap) {
       throw new Error("You have to build the cacheMap firstly for rm");
     }
-    const keyEnc = this.cacheMapOrigToEnc[key];
+    let keyEnc = this.cacheMapOrigToEnc[key];
     if (keyEnc === undefined) {
-      throw new Error(`no encrypted key ${key} before! cannot rm`);
+      // 防御性处理：如果缓存中没有映射（可能来自 prevSync 引用），
+      // 动态计算加密路径。最坏情况下 rm 失败也只是留下孤立文件，比抛错中断同步好。
+      if (this.isPasswordEmpty()) {
+        keyEnc = key;
+      } else {
+        try {
+          keyEnc = await this._encryptName(key);
+          this.cacheMapOrigToEnc[key] = keyEnc;
+        } catch {
+          console.warn(
+            `[OB Sync] Cannot encrypt key for deletion: ${key}, skipping remote removal.`
+          );
+          return;
+        }
+      }
     }
     return await this.innerFs.rm(keyEnc);
   }

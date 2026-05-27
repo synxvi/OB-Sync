@@ -48,6 +48,15 @@ export const getCategoryPathRules = (
       return { paths: [], prefixes: [`${configDir}/themes/`] };
     case "pluginsData":
       return { paths: [], prefixes: [`${configDir}/plugins/`] };
+    case "workspace":
+      return {
+        paths: [
+          `${configDir}/workspace.json`,
+          `${configDir}/workspaces.json`,
+          `${configDir}/workspace-mobile.json`,
+        ],
+        prefixes: [],
+      };
     default:
       return { paths: [], prefixes: [] };
   }

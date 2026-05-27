@@ -140,29 +140,47 @@ export const applySnapshotToLocal = (
     encryptionMethod: currentSettings.encryptionMethod,
   };
 
-  // 合并 deviceProfiles：优先使用快照中的配置；如果快照缺少当前设备，
-  // 保留本地当前设备 profile 的身份信息，但继承发送端的配置同步偏好。
+  // 合并 deviceProfiles：快照中其他设备的 profile 直接使用（由对应设备保存），
+  // 当前设备的 profile 需要与本地合并，避免远程快照中的旧数据覆盖本地最新设置。
   const mergedProfiles: Record<string, DeviceConfigProfile> = {
     ...(snapshot.deviceProfiles ?? {}),
   };
-  if (
-    mergedProfiles[currentDeviceId] === undefined &&
-    currentSettings.deviceProfiles?.[currentDeviceId]
-  ) {
-    const localProfile = currentSettings.deviceProfiles[currentDeviceId];
-    const senderProfile = snapshot.deviceProfiles?.[snapshot.savedByDeviceId];
-    mergedProfiles[currentDeviceId] = {
-      ...localProfile,
-      // 继承发送端的配置同步偏好，使"应用远程配置"能真正生效
-      ...(senderProfile
-        ? {
-            categorySyncModes: senderProfile.categorySyncModes,
-            pullOnlyPlugins: senderProfile.pullOnlyPlugins,
-            pushOnlyPlugins: senderProfile.pushOnlyPlugins,
-            skipPlugins: senderProfile.skipPlugins,
-          }
-        : {}),
-    };
+
+  const localProfile = currentSettings.deviceProfiles?.[currentDeviceId];
+  const snapshotProfile = mergedProfiles[currentDeviceId];
+
+  if (localProfile) {
+    if (snapshotProfile) {
+      // 快照中存在当前设备的 profile：以本地为准，
+      // 仅补充本地缺失的类别设置（由其他设备同步过来的新增类别）
+      mergedProfiles[currentDeviceId] = {
+        ...localProfile,
+        // 本地已有的 categorySyncModes 优先，远程仅补充本地未设置的类别
+        categorySyncModes: {
+          ...(snapshotProfile.categorySyncModes ?? {}),
+          ...(localProfile.categorySyncModes ?? {}),
+        },
+        // pullOnlyPlugins/pushOnlyPlugins/skipPlugins 始终以本地为准
+        pullOnlyPlugins: localProfile.pullOnlyPlugins ?? snapshotProfile.pullOnlyPlugins ?? [],
+        pushOnlyPlugins: localProfile.pushOnlyPlugins ?? snapshotProfile.pushOnlyPlugins ?? [],
+        skipPlugins: localProfile.skipPlugins ?? snapshotProfile.skipPlugins ?? [],
+      };
+    } else {
+      // 快照中缺少当前设备：保留本地 profile 身份信息，
+      // 但继承发送端的配置同步偏好，使"应用远程配置"能真正生效
+      const senderProfile = snapshot.deviceProfiles?.[snapshot.savedByDeviceId];
+      mergedProfiles[currentDeviceId] = {
+        ...localProfile,
+        ...(senderProfile
+          ? {
+              categorySyncModes: senderProfile.categorySyncModes,
+              pullOnlyPlugins: senderProfile.pullOnlyPlugins,
+              pushOnlyPlugins: senderProfile.pushOnlyPlugins,
+              skipPlugins: senderProfile.skipPlugins,
+            }
+          : {}),
+      };
+    }
   }
 
   return {

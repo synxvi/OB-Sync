@@ -69,7 +69,7 @@ export const listFilesInObsFolder = async (
         if (iter.children !== undefined) {
           for (const iter2 of iter.children.folders) {
             if (
-              isSpecialFolderNameToSkip(iter2, ["workspace", "workspace.json"])
+              isSpecialFolderNameToSkip(iter2, [])
             ) {
               continue;
             }
@@ -81,7 +81,7 @@ export const listFilesInObsFolder = async (
           }
           for (const iter2 of iter.children.files) {
             if (
-              isSpecialFolderNameToSkip(iter2, ["workspace", "workspace.json"])
+              isSpecialFolderNameToSkip(iter2, [])
             ) {
               continue;
             }

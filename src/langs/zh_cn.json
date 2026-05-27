@@ -308,6 +308,7 @@
   "device_config_category_snippets": "CSS 片段 (snippets/)",
   "device_config_category_themes": "主题 (themes/)",
   "device_config_category_pluginsData": "插件数据 (plugins/*/)",
+  "device_config_category_workspace": "工作区布局 (workspace*.json)",
   "device_config_per_plugin": "逐插件覆盖",
   "device_config_per_plugin_desc": "为特定插件设置独立的同步模式，覆盖上方插件数据的全局设置。",
   "plugin_sync_force_refresh": "强制刷新",

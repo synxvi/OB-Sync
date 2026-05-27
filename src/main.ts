@@ -808,8 +808,15 @@ export default class ObsSyncPlugin extends Plugin {
     }
 
     if (this.settings.enableDeviceConfigSync === undefined) {
-      // 迁移：老用户 syncConfigDir=true 时自动启用
+      // 迁移：老用户 syncConfigDir=true 时自动启用设备级配置同步
       this.settings.enableDeviceConfigSync = this.settings.syncConfigDir ?? false;
+    }
+
+    // 迁移后清理旧字段，避免在 FakeFsLocal.walk() 和 sync.ts 中重复处理
+    // enableDeviceConfigSync 已完全取代 syncConfigDir 和 syncBookmarks
+    if (this.settings.enableDeviceConfigSync) {
+      this.settings.syncConfigDir = false;
+      this.settings.syncBookmarks = false;
     }
 
     if (this.settings.onedrive.clientID === "") {

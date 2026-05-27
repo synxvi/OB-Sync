@@ -307,6 +307,7 @@
   "device_config_category_snippets": "CSS 片段 (snippets/)",
   "device_config_category_themes": "主題 (themes/)",
   "device_config_category_pluginsData": "外掛資料 (plugins/*/)",
+  "device_config_category_workspace": "工作區佈局 (workspace*.json)",
   "device_config_per_plugin": "逐外掛覆蓋",
   "device_config_per_plugin_desc": "為特定外掛設定獨立的同步模式，覆蓋上方外掛資料的全域設定。",
   "plugin_sync_force_refresh": "強制重新整理",

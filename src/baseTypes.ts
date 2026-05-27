@@ -176,7 +176,8 @@ export type ConfigSyncCategory =
   | "graph"
   | "snippets"
   | "themes"
-  | "pluginsData";
+  | "pluginsData"
+  | "workspace";
 
 /** 配置同步模式 */
 export type ConfigSyncMode = "sync" | "pull_only" | "push_only" | "skip";
@@ -226,6 +227,7 @@ export const ALL_CONFIG_SYNC_CATEGORIES: ConfigSyncCategory[] = [
   "snippets",
   "themes",
   "pluginsData",
+  "workspace",
 ];
 
 export type DecisionTypeForMixedEntity =

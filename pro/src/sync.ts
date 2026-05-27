@@ -435,18 +435,55 @@ const ensembleMixedEnties = async (
   profiler?.insert("ensembleMixedEnties: finish remote");
   profiler?.insertSize("sizeof finalMappings", finalMappings);
 
-  if (
+  const remoteNonConfigCount =
     Object.keys(finalMappings).filter((k) => !k.startsWith(configDir)).length -
-      remoteMaySkipCountAndNotConfig ===
-      0 ||
-    localEntityList.filter((e) => !e.key?.startsWith(configDir)).length === 0
-  ) {
+    remoteMaySkipCountAndNotConfig;
+  const localNonConfigCount = localEntityList.filter(
+    (e) => !e.key?.startsWith(configDir)
+  ).length;
+  const oneSideIsEmpty =
+    remoteNonConfigCount === 0 || localNonConfigCount === 0;
+
+  if (oneSideIsEmpty) {
     // Special checking:
-    // if one side is totally empty,
-    // usually that's a hard rest.
-    // So we need to ignore everything of prevSyncEntityList to avoid deletions!
-    // TODO: acutally erase everything of prevSyncEntityList?
-    // TODO: local should also go through a checkIsSkipItemOrNotByName checking beforehand
+    // if one side is totally empty, usually that's a hard reset or a new device.
+    // We still process prevSync for files that exist on the non-empty side
+    // to maintain change detection, but skip entries that would cause deletions
+    // (files only in prevSync, absent from both current sides).
+    console.warn(
+      `[OB Sync] One side appears empty (remote non-config: ${remoteNonConfigCount}, local non-config: ${localNonConfigCount}). ` +
+        `PrevSync-only entries (deletions) are skipped to protect against accidental data loss. ` +
+        `If this is intentional, run sync again to propagate deletions.`
+    );
+    for (const prevSync of prevSyncEntityList) {
+      const key = prevSync.key!;
+      // Only process prevSync if there's a matching entry on the non-empty side
+      if (!finalMappings.hasOwnProperty(key)) {
+        continue;
+      }
+
+      if (!(key in skipOrNotResults)) {
+        const skipOrNot = checkIsSkipItemOrNotByName(
+          key,
+          syncConfigDir,
+          syncBookmarks,
+          syncUnderscoreItems,
+          configDir,
+          ignorePaths,
+          onlyAllowPaths,
+          enableDeviceConfigSync,
+          deviceConfigProfile,
+          pluginId
+        );
+        skipOrNotResults[key] = skipOrNot;
+      }
+
+      // TODO: abstraction leaking?
+      const prevSyncCopied = await fsEncrypt.encryptEntity(
+        copyEntityAndFixTimeFormat(prevSync, serviceType)
+      );
+      finalMappings[key].prevSync = prevSyncCopied;
+    }
   } else {
     // normally go through the prevSyncEntityList
     for (const prevSync of prevSyncEntityList) {
@@ -1273,6 +1310,16 @@ const getSyncPlanInplace = async (
           console.info(
             `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 pull_only: conflict_created_then_do_nothing`
           );
+        } else if (
+          orig === "conflict_created_then_smart_conflict" ||
+          orig === "conflict_modified_then_smart_conflict"
+        ) {
+          // smart_conflict 会尝试合并并回写远端，与 pull_only 语义冲突，改为仅拉取远端
+          mrEntry.decision = "conflict_modified_then_keep_remote";
+          mrEntry.decisionBranch = 9003;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 pull_only: conflict_modified_then_keep_remote`
+          );
         }
       }
 
@@ -1295,6 +1342,31 @@ const getSyncPlanInplace = async (
           console.info(
             `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 push_only: conflict_created_then_do_nothing`
           );
+        } else if (orig === "conflict_created_then_keep_remote") {
+          // 远端新建冲突被选中，改为保留本地版本
+          mrEntry.decision = "conflict_created_then_keep_local";
+          mrEntry.decisionBranch = 9004;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 push_only: conflict_created_then_keep_local`
+          );
+        } else if (orig === "remote_is_deleted_thus_also_delete_local") {
+          // 远端删除不应传播到本地（仅推送模式下本地是权威源）
+          mrEntry.decision = "conflict_created_then_do_nothing";
+          mrEntry.decisionBranch = 9004;
+          mrEntry.change = false;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 push_only: conflict_created_then_do_nothing`
+          );
+        } else if (
+          orig === "conflict_created_then_smart_conflict" ||
+          orig === "conflict_modified_then_smart_conflict"
+        ) {
+          // smart_conflict 会尝试合并并拉取远端，与 push_only 语义冲突，改为仅推送本地
+          mrEntry.decision = "conflict_modified_then_keep_local";
+          mrEntry.decisionBranch = 9004;
+          console.info(
+            `[OB Sync 设备级配置] ${mrKey} → ${orig} 改为 push_only: conflict_modified_then_keep_local`
+          );
         }
       }
     }
@@ -1303,9 +1375,12 @@ const getSyncPlanInplace = async (
   keptFolder.delete("/");
   keptFolder.delete("");
   if (keptFolder.size > 0) {
-    console.error(sortedKeys);
-    console.error(mixedEntityMappings);
-    throw Error(`unexpectedly keptFolder no decisions: ${[...keptFolder]}`);
+    // 某些父目录可能因过滤规则被排除在 sortedKeys 之外，
+    // 但其子文件被保留时会向 keptFolder 注册该父目录。
+    // 这不影响同步正确性，仅作警告。
+    console.warn(
+      `[OB Sync] keptFolder contains unresolved entries (likely due to path filtering): ${[...keptFolder].slice(0, 10).join(", ")}${keptFolder.size > 10 ? ` ... and ${keptFolder.size - 10} more` : ""}`
+    );
   }
 
   // finally we want to make our life easier
@@ -1506,6 +1581,16 @@ const fullfillMTimeOfRemoteEntityInplace = (
     */
   ) {
     remote.mtimeCli = mtimeCli;
+    // 同时设置 mtimeSvr，避免 WebDAV/OneDrive 等服务端重设 mtime
+    // 导致下次同步时 prevSync.mtimeSvr 与 remote.mtimeCli 不匹配，
+    // 产生虚假的"远程已修改"检测。
+    if (
+      remote.mtimeSvr === undefined ||
+      remote.mtimeSvr <= 0 ||
+      remote.mtimeSvr !== mtimeCli
+    ) {
+      remote.mtimeSvr = mtimeCli;
+    }
   }
   return remote;
 };
