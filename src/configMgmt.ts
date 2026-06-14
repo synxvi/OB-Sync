@@ -123,13 +123,27 @@ export const deleteConfigFromRemote = async (
   await fs.rm(snapshotKey);
 };
 
-/** 智能合并：将远程快照应用到本地设置 */
+/**
+ * 设备隔离模型下的合并：将远程单个快照应用到本地设置。
+ *
+ * 权威来源（device isolation）：
+ *  - 每台设备的 profile 只由该设备自己写入（远程 `devices/<deviceId>.json`），
+ *    因此一个快照只对它自己的作者（`savedByDeviceId`）的 profile 有权威；
+ *  - 快照里对「当前设备」的描述只是作者的二手记忆，一律丢弃，本设备完全自治；
+ *  - 任何设备在本地缺失的 profile，可从快照中引入（首次见到该设备的场景）。
+ *
+ * 这样「A 设备的设置覆盖 B 设备的设置」从架构上无法发生。
+ *
+ * 注：pluginSettings（lang / conflictAction 等非设备绑定全局配置）仍走「远程覆盖本地」，
+ * 这些字段的多方写冲突需要后续通过字段级时间戳根治，不在本次修复范围内。
+ */
 export const applySnapshotToLocal = (
   snapshot: ConfigManagementSnapshot,
   currentSettings: ObsSyncPluginSettings,
   currentDeviceId: string
 ): ObsSyncPluginSettings => {
   const remote = snapshot.pluginSettings;
+  const author = snapshot.savedByDeviceId;
 
   // 这些字段绝不覆盖（连接相关）
   const preserved: Partial<ObsSyncPluginSettings> = {
@@ -140,47 +154,31 @@ export const applySnapshotToLocal = (
     encryptionMethod: currentSettings.encryptionMethod,
   };
 
-  // 合并 deviceProfiles：快照中其他设备的 profile 直接使用（由对应设备保存），
-  // 当前设备的 profile 需要与本地合并，避免远程快照中的旧数据覆盖本地最新设置。
+  // 以本地 profile 为基底，逐个决定每个设备 profile 的去留。
   const mergedProfiles: Record<string, DeviceConfigProfile> = {
-    ...(snapshot.deviceProfiles ?? {}),
+    ...(currentSettings.deviceProfiles ?? {}),
   };
 
-  const localProfile = currentSettings.deviceProfiles?.[currentDeviceId];
-  const snapshotProfile = mergedProfiles[currentDeviceId];
-
-  if (localProfile) {
-    if (snapshotProfile) {
-      // 快照中存在当前设备的 profile：以本地为准，
-      // 仅补充本地缺失的类别设置（由其他设备同步过来的新增类别）
-      mergedProfiles[currentDeviceId] = {
-        ...localProfile,
-        // 本地已有的 categorySyncModes 优先，远程仅补充本地未设置的类别
-        categorySyncModes: {
-          ...(snapshotProfile.categorySyncModes ?? {}),
-          ...(localProfile.categorySyncModes ?? {}),
-        },
-        // pullOnlyPlugins/pushOnlyPlugins/skipPlugins 始终以本地为准
-        pullOnlyPlugins: localProfile.pullOnlyPlugins ?? snapshotProfile.pullOnlyPlugins ?? [],
-        pushOnlyPlugins: localProfile.pushOnlyPlugins ?? snapshotProfile.pushOnlyPlugins ?? [],
-        skipPlugins: localProfile.skipPlugins ?? snapshotProfile.skipPlugins ?? [],
-      };
-    } else {
-      // 快照中缺少当前设备：保留本地 profile 身份信息，
-      // 但继承发送端的配置同步偏好，使"应用远程配置"能真正生效
-      const senderProfile = snapshot.deviceProfiles?.[snapshot.savedByDeviceId];
-      mergedProfiles[currentDeviceId] = {
-        ...localProfile,
-        ...(senderProfile
-          ? {
-              categorySyncModes: senderProfile.categorySyncModes,
-              pullOnlyPlugins: senderProfile.pullOnlyPlugins,
-              pushOnlyPlugins: senderProfile.pushOnlyPlugins,
-              skipPlugins: senderProfile.skipPlugins,
-            }
-          : {}),
-      };
+  for (const [deviceId, remoteProfile] of Object.entries(
+    snapshot.deviceProfiles ?? {}
+  )) {
+    if (deviceId === currentDeviceId) {
+      // 当前设备的 profile 完全自治：忽略远程对它的任何描述。
+      // 本地已有则保留本地；本地缺失（首次注册前的极端情况）也跳过，
+      // 由 main.ts 的设备自注册逻辑负责补齐，绝不接受他人代写。
+      continue;
     }
+
+    const localProfile = mergedProfiles[deviceId];
+    if (deviceId === author) {
+      // 作者对自己 profile 的写入是权威的：无条件采纳。
+      mergedProfiles[deviceId] = remoteProfile;
+    } else if (!localProfile) {
+      // 非作者、且本地没有该设备 profile：作为「首次见到」引入。
+      // （作者记忆中的第三方设备可能陈旧，但本地一无所有时引入总比缺失好。）
+      mergedProfiles[deviceId] = remoteProfile;
+    }
+    // 其它情况（非作者 + 本地已有）：保留本地，作者对该设备的二手记忆不可信。
   }
 
   return {
