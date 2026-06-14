@@ -226,8 +226,8 @@ export const ALL_CONFIG_SYNC_CATEGORIES: ConfigSyncCategory[] = [
   "graph",
   "snippets",
   "themes",
-  "pluginsData",
   "workspace",
+  "pluginsData",
 ];
 
 export type DecisionTypeForMixedEntity =

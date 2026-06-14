@@ -271,8 +271,23 @@
 
 .obsync-tab.active {
   color: var(--text-normal);
-  border-bottom-color: var(--interactive-accent);
+  border-bottom: 3px solid var(--interactive-accent);
+  margin-bottom: -3px;
   font-weight: 600;
+  position: relative;
+}
+
+/* 选中态：底部加粗强调线 + 微弱背景，让当前页签更醒目 */
+.obsync-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2px;
+  background: var(--interactive-accent);
+  border-radius: 2px;
+  opacity: 0.55;
 }
 
 /* Tab 内容 */
